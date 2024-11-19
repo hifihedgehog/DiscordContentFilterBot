@@ -102,11 +102,14 @@ async def initialize_database():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         print(f"SQLite Version: {aiosqlite.sqlite_version}")
         
-        # Enable WAL2 mode
+        # Enable WAL2 mode and performance enhancements
         async with db.execute("PRAGMA journal_mode=WAL2;") as cursor:
             result = await cursor.fetchone()
             if result and result[0].upper() == "WAL2":
                 print("Journal mode successfully set to WAL2.")
+        await db.execute("pragma synchronous = normal")
+        await db.execute("pragma temp_store = memory")
+        await db.execute("pragma mmap_size = 1000000000;")
             
         # Create tables
         await db.execute("""

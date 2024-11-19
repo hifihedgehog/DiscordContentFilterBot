@@ -420,8 +420,6 @@ async def get_whitelist_pattern(term: str) -> regex.Pattern:
     cache_key = f"wl:{term}"
     if cache_key not in pattern_cache:
         normalized_term, _ = await normalize_text(term)
-        reversed_term = term[::-1]
-        normalized_reversed_term = normalized_term[::-1]
         word_boundary_start = r'(?<![A-Za-z0-9])'
         word_boundary_end = r'(?![A-Za-z0-9])'
 
@@ -438,8 +436,6 @@ async def get_whitelist_pattern(term: str) -> regex.Pattern:
             subpatterns = (
                 create_subpatterns(term)
                 + create_subpatterns(normalized_term)
-                + create_subpatterns(reversed_term)
-                + create_subpatterns(normalized_reversed_term)
             )
             pattern = f"(?:{'|'.join(subpatterns)})"
         pattern_cache[cache_key] = regex.compile(pattern, regex.IGNORECASE)
@@ -1419,7 +1415,6 @@ async def on_ready():
     
     asyncio.create_task(prune_deleted_messages())
     print("Prune deleted messages started.")
-    
     
     for guild in bot.guilds:
         server_config = await load_server_config(guild.id)

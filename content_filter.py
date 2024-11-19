@@ -1763,7 +1763,7 @@ class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):
 class BlacklistSelectView(discord.ui.View):
     """View for selecting a blacklist to edit."""
     def __init__(self, blacklists):
-        super().__init__(timeout=60)
+        super().__init__()
         sorted_blacklist_names = sorted(blacklists.keys(), key=lambda x: x.lower())
         options = [
             discord.SelectOption(
@@ -1774,12 +1774,6 @@ class BlacklistSelectView(discord.ui.View):
             for bl_name in sorted_blacklist_names[:25]
         ]
         self.add_item(BlacklistSelect(options))
-
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        if hasattr(self, 'message'):
-            await self.message.edit(view=self)
 
 class BlacklistSelect(discord.ui.Select):
     """Dropdown for selecting a blacklist."""
@@ -1801,7 +1795,7 @@ class BlacklistSelect(discord.ui.Select):
 class WhitelistSelectView(discord.ui.View):
     """View for selecting a whitelist to edit."""
     def __init__(self, whitelists):
-        super().__init__(timeout=60)
+        super().__init__()
         sorted_whitelist_names = sorted(whitelists.keys(), key=lambda x: x.lower())
         options = [
             discord.SelectOption(
@@ -1812,12 +1806,6 @@ class WhitelistSelectView(discord.ui.View):
             for wl_name in sorted_whitelist_names[:25]
         ]
         self.add_item(WhitelistSelect(options))
-
-    async def on_timeout(self):
-        for item in self.children:
-            item.disabled = True
-        if hasattr(self, 'message'):
-            await self.message.edit(view=self)
 
 class WhitelistSelect(discord.ui.Select):
     """Dropdown for selecting a whitelist."""

@@ -18,7 +18,9 @@ import emoji
 import json
 import os
 import regex
+import time
 import unicodedata
+from asyncio import Queue
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from discord import app_commands
@@ -40,6 +42,10 @@ character_map = {}
 pattern_cache = {}
 server_config_cache = {}
 webhook_cache = {}
+
+# Global Task Queues
+message_deletion_queue = Queue()
+reaction_removal_queue = Queue()
 
 # Bot Setup with Required Intents
 intents = discord.Intents.all()
@@ -1414,7 +1420,13 @@ async def on_ready():
     print("Punishment checker started.")
     
     asyncio.create_task(prune_deleted_messages())
-    print("Prune deleted messages started.")
+    print("Deleted message pruner started.")
+    
+    asyncio.create_task(message_deletion_worker())
+    print("Message deletion worker started.")
+    
+    asyncio.create_task(reaction_removal_worker())
+    print("Reaction removal worker started.")
     
     for guild in bot.guilds:
         server_config = await load_server_config(guild.id)
@@ -1450,7 +1462,7 @@ async def on_message(message):
             message.content, message.channel, message.author, server_config
         )
         if censored_message_content != message.content:
-            await message.delete()
+            await message_deletion_queue.put(message) 
             reposted_message = await repost_as_user(message, censored_message_content)
             await log_censored_message(message, censored_message_content, reposted_message, server_config)
             await notify_user_message(message, censored_message_content, reposted_message, server_config)
@@ -1480,7 +1492,7 @@ async def on_raw_message_edit(payload):
         message.content, channel, message.author, server_config
     )
     if censored_message_content != message.content:
-        await message.delete()
+        await message_deletion_queue.put(message) 
         reposted_message = await repost_as_user(message, censored_message_content)
         await log_censored_message(message, censored_message_content, reposted_message, server_config)
         await notify_user_message(message, censored_message_content, reposted_message, server_config)
@@ -1551,7 +1563,7 @@ async def on_raw_reaction_add(payload):
         await log_removed_reaction(user, str(reaction.emoji), reaction.message, server_config)
         await notify_user_reaction_removal(user, str(reaction.emoji), reaction.message, server_config)
         await check_and_apply_punishment(user, reaction.message.guild.id, server_config)
-        await reaction.remove(user)
+        await reaction_removal_queue.put((reaction, user))
         return
 
 @bot.event
@@ -1641,6 +1653,34 @@ async def prune_deleted_messages():
         except Exception as e:
             print(f"Error in prune_deleted_messages: {e}")
         await asyncio.sleep(60)
+        
+async def message_deletion_worker():
+    """Worker task to process message deletions."""
+    while True:
+        message = await message_deletion_queue.get()
+        try:
+            await message.delete()
+            await asyncio.sleep(0.2)
+        except discord.Forbidden:
+            print(f"Failed to delete message in {message.channel}: Forbidden.")
+        except discord.HTTPException as e:
+            print(f"HTTPException during deletion: {e}")
+        finally:
+            message_deletion_queue.task_done()
+            
+async def reaction_removal_worker():
+    """Worker task to process reaction removals."""
+    while True:
+        reaction, user = await reaction_removal_queue.get()
+        try:
+            await reaction.remove(user)
+            await asyncio.sleep(0.2)
+        except discord.Forbidden:
+            print(f"Failed to remove reaction {reaction.emoji} in {reaction.message.channel}: Forbidden.")
+        except discord.HTTPException as e:
+            print(f"HTTPException during removal: {e}")
+        finally:
+            reaction_removal_queue.task_done()
 
 # Modal Classes
 class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):

@@ -28,6 +28,9 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from typing import Dict, List, Optional, Tuple, Union
 
+# Load environment variables from .env file
+load_dotenv()
+
 # Core Constants
 MAX_MESSAGE_LENGTH = 2000
 CONFIG_DIR = "server_configs"

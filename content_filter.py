@@ -25,6 +25,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from discord import app_commands
 from discord.ext import commands
+from dotenv import load_dotenv
 from typing import Dict, List, Optional, Tuple, Union
 
 # Core Constants
@@ -108,7 +109,6 @@ async def initialize_database():
     async with aiosqlite.connect(DATABASE_PATH) as db:
         print(f"SQLite Version: {aiosqlite.sqlite_version}")
         
-        # Enable WAL2 mode and performance enhancements
         async with db.execute("PRAGMA journal_mode = WAL2;") as cursor:
             result = await cursor.fetchone()
             if result and result[0].upper() == "WAL2":
@@ -117,7 +117,6 @@ async def initialize_database():
         await db.execute("PRAGMA temp_store = memory")
         await db.execute("PRAGMA mmap_size = 1000000000;")
             
-        # Create tables
         await db.execute("""
             CREATE TABLE IF NOT EXISTS censored_messages (
                 guild_id INTEGER,
@@ -1393,10 +1392,10 @@ async def check_and_apply_punishment(user: discord.Member, guild_id: int, server
                     color=discord.Color.dark_red(),
                     timestamp=current_time
                 )
-                embed.add_field(name="Reason", value="Repeated violations of the server's content rules.", inline=False)
                 embed.add_field(name="Punishment", value=f"Temporary role: `{role.name}`", inline=False)
                 embed.add_field(name="Duration", value=str(punishment_duration), inline=False)
                 embed.add_field(name="Punishment Expires At", value=f"<t:{int(expiration_time.timestamp())}:R>", inline=False)
+                embed.add_field(name="Reason", value="Repeated violations of the server's content rules.", inline=False)
 
                 try:
                     await user.send(
@@ -1609,7 +1608,6 @@ async def on_member_update(before, after):
         await filter_display_name(after)
 
 # Background Tasks
-# Replace the existing punishment_checker function with this enhanced version
 async def punishment_checker():
     """Background task to check and remove expired punishments."""
     await bot.wait_until_ready()
@@ -1628,10 +1626,15 @@ async def punishment_checker():
                         try:
                             await member.remove_roles(role, reason="Punishment duration expired.")
                             try:
-                                await member.send(
-                                    content=f"Your punishment role `{role.name}` has been lifted. "
-                                           "Please adhere to the server rules to avoid future punishments."
+                                embed_lift = discord.Embed(
+                                    title="Punishment Lifted",
+                                    color=discord.Color.green(),
+                                    timestamp=datetime.now(timezone.utc)
                                 )
+                                embed_lift.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
+                                embed_lift.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
+                                embed_lift.add_field(name="Reason", value="Punishment duration has expired.", inline=False)
+                                await member.send(embed_lift)
                             except discord.Forbidden:
                                 print(f"Unable to send DM to {member.display_name} ({member.id}).")
 
@@ -1834,7 +1837,7 @@ class BlacklistSelectView(discord.ui.View):
         options = [
             discord.SelectOption(
                 label=bl_name,
-                description=f"Edit the `{bl_name}` blacklist",
+                description=f"Edit the \"{bl_name}\" blacklist",
                 emoji="📝"
             )
             for bl_name in sorted_blacklist_names[:25]
@@ -1866,7 +1869,7 @@ class WhitelistSelectView(discord.ui.View):
         options = [
             discord.SelectOption(
                 label=wl_name,
-                description=f"Edit the `{wl_name}` whitelist",
+                description=f"Edit the \"{wl_name}\" whitelist",
                 emoji="📝"
             )
             for wl_name in sorted_whitelist_names[:25]
@@ -2208,7 +2211,6 @@ async def add_channel_exception(
     server_config = await load_server_config(interaction.guild.id)
     blacklists = server_config.get("blacklists", {})
 
-    # Check if the blacklist exists
     if blacklist_name not in blacklists:
         await interaction.response.send_message(
             f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True
@@ -2238,7 +2240,6 @@ async def add_role_exception(interaction: discord.Interaction, role: discord.Rol
     server_config = await load_server_config(interaction.guild.id)
     blacklists = server_config.get("blacklists", {})
 
-    # Check if the blacklist exists
     if blacklist_name not in blacklists:
         await interaction.response.send_message(
             f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True
@@ -2385,7 +2386,6 @@ async def add_global_channel_exception(interaction: discord.Interaction,
     else:
         await interaction.response.send_message(f"{channel.mention} already globally excepted.")
 
-# After add_global_channel_exception command
 @bot.tree.command(name="add_global_role_exception")
 @is_admin()
 async def add_global_role_exception(interaction: discord.Interaction, role: discord.Role):
@@ -2582,7 +2582,6 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
         await interaction.response.send_message("Punishment role not found.", ephemeral=True)
         return
 
-    # Validate punishment exists
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute("""
             SELECT guild_id, user_id, role_id FROM punishments
@@ -2606,15 +2605,18 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
             """, punishments)
             await db.commit()
 
-        # Notify user
         try:
-            await member.send(
-                f"Your punishment role `{punishment_role.name}` has been lifted by a staff member."
+            embed = discord.Embed(
+                title="Punishment Lifted",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
             )
+            embed.add_field(name="Punishment Role", value=f"`{punishment_role.name}`", inline=False)
+            embed.add_field(name="Action", value="Punishment manually lifted.", inline=False)
+            await member.send(embed=embed)
         except discord.Forbidden:
             pass
 
-        # Log action
         log_channel_id = server_config.get("log_channel_id")
         if log_channel_id:
             log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
@@ -2748,4 +2750,4 @@ async def delete_censored_message(interaction: discord.Interaction, message: dis
     await interaction.response.send_message("Message deleted.", ephemeral=True)
 
 # Bot Token and Run
-bot.run("YOUR_BOT_TOKEN_HERE")
+bot.run(os.getenv("BOT_TOKEN"))

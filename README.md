@@ -68,7 +68,7 @@ pip install -r requirements.txt
    - Verify WAL2 support is available
 
 4. Configure the bot:
-   - Update YOUR_BOT_TOKEN_HERE in content_filter.py with your bot token
+   - Add a .env file with BOT_TOKEN defined as your bot token
 
 5. Run the bot:
 ```bash

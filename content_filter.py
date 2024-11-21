@@ -485,7 +485,7 @@ async def get_blacklist_pattern(term: str) -> regex.Pattern:
         pattern_cache[cache_key] = regex.compile(pattern, regex.IGNORECASE)
     return pattern_cache[cache_key]
 
-async def is_globally_exempt(channel: Optional[discord.abc.GuildChannel],
+async def is_globally_exempt(channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]],
                            author: Union[discord.User, discord.Member],
                            server_config: dict) -> bool:
     """Check if message is globally exempt from filtering."""
@@ -510,7 +510,7 @@ async def is_globally_exempt(channel: Optional[discord.abc.GuildChannel],
 
     return False
 
-async def check_exceptions(channel: Optional[discord.abc.GuildChannel],
+async def check_exceptions(channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]],
                         author: Union[discord.User, discord.Member],
                         server_config: dict,
                         blacklist_name: str) -> bool:
@@ -544,7 +544,7 @@ async def check_exceptions(channel: Optional[discord.abc.GuildChannel],
     return False
 
 # Content Filtering Functions
-async def censor_message(content: str, channel: Optional[discord.abc.GuildChannel], 
+async def censor_message(content: str, channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]], 
                          author: Union[discord.User, discord.Member], server_config: dict) -> str:
     """
     Apply censorship to message content based on blacklists and whitelists.
@@ -618,7 +618,7 @@ async def censor_message(content: str, channel: Optional[discord.abc.GuildChanne
     return censored_message_content
 
 
-async def apply_spoilers(content: str, channel: Optional[discord.abc.GuildChannel], 
+async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]], 
                          author: Union[discord.User, discord.Member], server_config: dict) -> str:
     """Apply spoiler tags to blacklisted content."""
     if await is_globally_exempt(channel, author, server_config):
@@ -686,7 +686,7 @@ async def apply_spoilers(content: str, channel: Optional[discord.abc.GuildChanne
 
     return censored_message_content
 
-async def get_blocked_terms(content: str, channel: Optional[discord.abc.GuildChannel], 
+async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]], 
                             author: Union[discord.User, discord.Member], server_config: dict, 
                             blacklist: Optional[str] = None) -> set:
     """Get list of blocked terms that match content."""
@@ -887,68 +887,49 @@ async def notify_user_message(message, censored_message, reposted_message, serve
         if blocked_terms:
             triggered_blacklists.append((blacklist, blocked_terms))
 
-    if not triggered_blacklists:
-        blocked_terms = await get_blocked_terms(message.content, message.channel, message.author, server_config)
-    else:
-        blocked_terms = [term for _, terms in triggered_blacklists for term in terms]
-
-    content = server_config.get("dm_notifications", "Your message was filtered because it contains blacklisted content.")
-    embed = discord.Embed(title="Message Censored", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
-    
-    embed.add_field(name="Your Message with Blocked Terms Hidden", value=spoilered_content[:1024] or "No content", inline=False)
-    embed.add_field(name="Censored Message", value=censored_message[:1024] or "No content", inline=False)
-    
-    if triggered_blacklists:
-        blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
-                                     for name, terms in triggered_blacklists])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
-    else:
-        embed.add_field(name="Blocked Terms", 
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
-                       inline=False)
-
-    embed.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed.add_field(name="Message Link", value=f"[Go to Message]({reposted_message.jump_url})", inline=False)
-    
-    try:
-        await message.author.send(content=content, embed=embed)
-    except discord.Forbidden:
-        pass
-
-async def notify_user_reaction_removal(user, emoji, message, server_config):
-    """Notify user about removed reaction."""
-    triggered_blacklists = []
-    spoilered_content = await apply_spoilers(emoji, message.channel, user, server_config)
-    
-    for blacklist, terms in server_config.get("blacklists", {}).items():
-        blocked_terms = await get_blocked_terms(emoji, message.channel, user, server_config, blacklist)
-        if blocked_terms:
-            triggered_blacklists.append((blacklist, blocked_terms))
-
     blocked_terms = ([term for _, terms in triggered_blacklists for term in terms] if triggered_blacklists 
-                    else await get_blocked_terms(emoji, message.channel, user, server_config))
-                    
-    content = server_config.get("dm_notifications", "Your reaction was filtered because it contains blacklisted content.")
+                    else await get_blocked_terms(message.content, message.channel, message.author, server_config))
+
+    embeds = []
     
-    embed = discord.Embed(
-        title="Reaction Removed",
-        color=discord.Color.orange(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="Your Removed Reaction", value=spoilered_content, inline=False)
+    embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.red())
+    value = server_config.get("dm_notifications", "Your message was filtered because it contains blacklisted content.")
+    embed_1.add_field(name="", value=value, inline=False)
+    embeds.append(embed_1)
+    
+    embed_2 = discord.Embed(title="Message Censored", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+    
+    if len(spoilered_content) > 1024:
+        embed_2.add_field(name="Your Message With Blocked Terms Hidden (Truncated)", value=spoilered_content[:1024], inline=False)
+        embed_3 = discord.Embed(title=f"Your Message With Blocked Terms Hidden (Full)", description=spoilered_content, color=discord.Color.red())
+    else:
+        embed_2.add_field(name="Your Message With Blocked Terms Hidden", value=spoilered_content or "No content", inline=False)
+
+    if len(censored_message) > 1024:
+        embed_2.add_field(name="Censored Message (Truncated)", value=censored_message[:1024],inline=False)
+        embed_4 = discord.Embed(title=f"Censored Message (Full)", description=censored_message, color=discord.Color.red())
+    else:
+        embed_2.add_field(name="Censored Message", value=censored_message or "No content", inline=False)
+        
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
     else:
-        embed.add_field(name="Blocked Terms", 
+        embed_2.add_field(name="Blocked Terms", 
                        value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
                        inline=False)
-    embed.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
+
+    embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
+    embed_2.add_field(name="Message Link", value=f"[Go to Message]({reposted_message.jump_url})", inline=False)
+    embeds.append(embed_2)
     
     try:
-        await user.send(content=content, embed=embed)
+        await message.author.send(embeds=embeds)
+        if len(spoilered_content) > 1024:
+            await message.author.send(embed=embed_3)
+        if len(censored_message) > 1024:
+            await message.author.send(embed=embed_4)
     except discord.Forbidden:
         pass
 
@@ -962,37 +943,117 @@ async def notify_user_thread_title(thread, censored_title, server_config):
         if blocked_terms:
             triggered_blacklists.append((blacklist, blocked_terms))
 
-    if not triggered_blacklists:
-        blocked_terms = await get_blocked_terms(thread.name, thread, thread.owner, server_config)
-    else:
-        blocked_terms = [term for _, terms in triggered_blacklists for term in terms]
-
-    content = server_config.get("dm_notifications", "Your thread was filtered because it contains blacklisted content.")
+    blocked_terms = ([term for _, terms in triggered_blacklists for term in terms] if triggered_blacklists 
+                    else await get_blocked_terms(thread.name, thread, thread.owner, server_config))
+                    
+    embeds = []
     
-    embed = discord.Embed(
-        title="Thread Title Censored",
-        color=discord.Color.orange(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="Your Thread's Title with Blocked Terms Hidden",
+    embed_1 = discord.Embed(title=f"{thread.guild.name} Discord Server Content Filter Notification", color=discord.Color.orange())
+    value = server_config.get("dm_notifications", "Your thread was filtered because it contains blacklisted content.")
+    embed_1.add_field(name="", value=value, inline=False)
+    embeds.append(embed_1)
+    
+    embed_2 = discord.Embed(title="Thread Title Censored", color=discord.Color.orange(), timestamp=datetime.now(timezone.utc))
+    embed_2.add_field(name="Your Thread's Title With Blocked Terms Hidden",
                    value=spoilered_content[:1024] or "No content", inline=False)
-    embed.add_field(name="Censored Title",
+    embed_2.add_field(name="Censored Title",
                    value=censored_title[:1024] or "No content", inline=False)
     
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
     else:
-        embed.add_field(name="Blocked Terms",
+        embed_2.add_field(name="Blocked Terms",
                        value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
                        inline=False)
 
-    embed.add_field(name="Channel", value=thread.parent.mention, inline=False)
-    embed.add_field(name="Message Link", value=f"[Go to Thread]({thread.jump_url})", inline=False)
+    embed_2.add_field(name="Channel", value=thread.parent.mention, inline=False)
+    embed_2.add_field(name="Message Link", value=f"[Go to Thread]({thread.jump_url})", inline=False)
+    embeds.append(embed_2)
     
     try:
-        await thread.owner.send(content=content, embed=embed)
+        await thread.owner.send(embeds=embeds)
+    except discord.Forbidden:
+        pass
+        
+async def notify_user_reaction_removal(user, emoji, message, server_config):
+    """Notify user about removed reaction."""
+    triggered_blacklists = []
+    spoilered_content = await apply_spoilers(emoji, message.channel, user, server_config)
+    
+    for blacklist, terms in server_config.get("blacklists", {}).items():
+        blocked_terms = await get_blocked_terms(emoji, message.channel, user, server_config, blacklist)
+        if blocked_terms:
+            triggered_blacklists.append((blacklist, blocked_terms))
+
+    blocked_terms = ([term for _, terms in triggered_blacklists for term in terms] if triggered_blacklists 
+                    else await get_blocked_terms(emoji, message.channel, user, server_config))
+                    
+    embeds = []
+    
+    embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.yellow())
+    value = server_config.get("dm_notifications", "Your reaction was filtered because it contains blacklisted content.")
+    embed_1.add_field(name="", value=value, inline=False)
+    embeds.append(embed_1)
+    
+    embed_2 = discord.Embed(title="Reaction Removed", color=discord.Color.yellow(), timestamp=datetime.now(timezone.utc))
+    embed_2.add_field(name="Your Removed Reaction", value=spoilered_content, inline=False)
+    if triggered_blacklists:
+        blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
+                                     for name, terms in triggered_blacklists])
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+    else:
+        embed_2.add_field(name="Blocked Terms", 
+                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       inline=False)
+    embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
+    embed_2.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
+    embeds.append(embed_2)
+    
+    try:
+        await user.send(embeds=embeds)
+    except discord.Forbidden:
+        pass
+
+async def notify_user_display_name(member, censored_display_name, server_config):
+    """Notify user about display name censorship."""
+    triggered_blacklists = []
+    spoilered_content = await apply_spoilers(member.display_name, None, member, server_config)
+    
+    for blacklist, terms in server_config.get("blacklists", {}).items():
+        blocked_terms = await get_blocked_terms(member.display_name, None, member, server_config, blacklist)
+        if blocked_terms:
+            triggered_blacklists.append((blacklist, blocked_terms))
+        
+    blocked_terms = ([term for _, terms in triggered_blacklists for term in terms] if triggered_blacklists 
+                    else await get_blocked_terms(member.display_name, None, member, server_config))
+
+    embeds = []
+    
+    embed_1 = discord.Embed(title=f"{member.guild.name} Discord Server Content Filter Notification", color=discord.Color.purple())
+    value = server_config.get("dm_notifications", "Your display name was filtered because it contains blacklisted content.")
+    embed_1.add_field(name="", value=value, inline=False)
+    embeds.append(embed_1)
+    
+    embed_2 = discord.Embed(title="Display Name Censored", color=discord.Color.purple(), timestamp=datetime.now(timezone.utc))
+    embed_2.add_field(name="Your Display Name With Blocked Terms Hidden",
+                   value=spoilered_content or "No content", inline=False)
+    embed_2.add_field(name="Censored Display Name",
+                   value=censored_display_name or "No content", inline=False)
+    
+    if triggered_blacklists:
+        blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
+                                     for name, terms in triggered_blacklists])
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+    else:
+        embed_2.add_field(name="Blocked Terms",
+                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       inline=False)
+    embeds.append(embed_2)
+    
+    try:
+        await member.send(embeds=embeds)
     except discord.Forbidden:
         pass
 
@@ -1006,71 +1067,49 @@ async def notify_user_scan_deletion(message: discord.Message, censored_message: 
         if blocked_terms:
             triggered_blacklists.append((blacklist, blocked_terms))
     
-    content = server_config.get("dm_notifications", "Your message was removed because it contains blacklisted content.")
+    blocked_terms = ([term for _, terms in triggered_blacklists for term in terms] if triggered_blacklists 
+                    else await get_blocked_terms(message.content, message.channel, message.author, server_config))
     
-    embed = discord.Embed(
-        title="Message Deleted",
-        color=discord.Color.dark_red(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="Your Message with Blocked Terms Hidden", value=spoilered_content[:1024] or "No content", inline=False)
-    embed.add_field(name="Censored Message", value=censored_message[:1024] or "No content", inline=False)
+    embeds = []
     
+    embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.red())
+    value = server_config.get("dm_notifications", "Your message was removed because it contains blacklisted content.")
+    embed_1.add_field(name="", value=value, inline=False)
+    embeds.append(embed_1)
+    
+    embed_2 = discord.Embed(title="Message Deleted Via Channel Scan", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+
+    if len(spoilered_content) > 1024:
+        embed_2.add_field(name="Your Message With Blocked Terms Hidden (Truncated)", value=spoilered_content[:1024], inline=False)
+        embed_3 = discord.Embed(title=f"Your Message With Blocked Terms Hidden (Full)", description=spoilered_content, color=discord.Color.red())
+    else:
+        embed_2.add_field(name="Your Message With Blocked Terms Hidden", value=spoilered_content or "No content", inline=False)
+
+    if len(censored_message) > 1024:
+        embed_2.add_field(name="Censored Message (Truncated)", value=censored_message[:1024],inline=False)
+        embed_4 = discord.Embed(title=f"Censored Message (Full)", description=censored_message, color=discord.Color.red())
+    else:
+        embed_2.add_field(name="Censored Message", value=censored_message or "No content", inline=False)
+        
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
     else:
-        embed.add_field(name="Blocked Terms", 
+        embed_2.add_field(name="Blocked Terms", 
                        value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
                        inline=False)
-
-    embed.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
+                       
+    embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
+    embed_2.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
+    embeds.append(embed_2)
     
     try:
-        await message.author.send(content=content, embed=embed)
-    except discord.Forbidden:
-        print(f"Unable to send DM to {user.display_name} ({user.id}). They might have DMs disabled.")
-
-async def notify_user_display_name(member, censored_display_name, server_config):
-    """Notify user about display name censorship."""
-    triggered_blacklists = []
-    spoilered_content = await apply_spoilers(member.display_name, None, member, server_config)
-    
-    for blacklist, terms in server_config.get("blacklists", {}).items():
-        blocked_terms = await get_blocked_terms(member.display_name, None, member, server_config, blacklist)
-        if blocked_terms:
-            triggered_blacklists.append((blacklist, blocked_terms))
-
-    if not triggered_blacklists:
-        blocked_terms = await get_blocked_terms(member.display_name, None, member, server_config)
-    else:
-        blocked_terms = [term for _, terms in triggered_blacklists for term in terms]
-
-    content = server_config.get("dm_notifications", "Your display name was filtered because it contains blacklisted content.")
-    
-    embed = discord.Embed(
-        title="Display Name Censored",
-        color=discord.Color.red(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="Your Display Name with Blocked Terms Hidden",
-                   value=spoilered_content or "No content", inline=False)
-    embed.add_field(name="Censored Display Name",
-                   value=censored_display_name or "No content", inline=False)
-    
-    if triggered_blacklists:
-        blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
-                                     for name, terms in triggered_blacklists])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
-    else:
-        embed.add_field(name="Blocked Terms",
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
-                       inline=False)
-    
-    try:
-        await member.send(content=content, embed=embed)
+        await message.author.send(embeds=embeds)
+        if len(spoilered_content) > 1024:
+            await message.author.send(embed=embed_3)
+        if len(censored_message) > 1024:
+            await message.author.send(embed=embed_4)
     except discord.Forbidden:
         pass
 
@@ -1081,13 +1120,7 @@ async def log_censored_message(message, censored_message, reposted_message, serv
     spoilered_content = await apply_spoilers(message.content, message.channel, message.author, server_config)
     
     for blacklist, terms in server_config.get("blacklists", {}).items():
-        blocked_terms = await get_blocked_terms(
-            message.content,
-            message.channel,
-            message.author,
-            server_config,
-            blacklist
-        )
+        blocked_terms = await get_blocked_terms(message.content, message.channel, message.author, server_config, blacklist)
         if blocked_terms:
             triggered_blacklists.append((blacklist, blocked_terms))
 
@@ -1098,35 +1131,45 @@ async def log_censored_message(message, censored_message, reposted_message, serv
     if not log_channel_id:
         return
 
-    log_channel = message.guild.get_channel(log_channel_id)
+    log_channel = message.guild.get_channel_or_thread(log_channel_id)
     if not log_channel:
         return
-
-    embed = discord.Embed(
-        title="Message Censored",
-        color=discord.Color.red(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="User", value=message.author.mention, inline=False)
-    embed.add_field(name="Original Message", value=spoilered_content[:1024] or "No content", inline=False)
-    embed.add_field(name="Censored Message", value=censored_message[:1024] or "No content", inline=False)
     
+    embed_1 = discord.Embed(title="Message Censored", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+    embed_1.add_field(name="User", value=message.author.mention, inline=False)
+ 
+    if len(spoilered_content) > 1024:
+        embed_1.add_field(name="Original Message (Truncated)", value=spoilered_content[:1024], inline=False)
+        embed_2 = discord.Embed(title=f"Original Message (Full)", description=spoilered_content, color=discord.Color.red())
+    else:
+        embed_1.add_field(name="Original Message", value=spoilered_content or "No content", inline=False)
+    if len(censored_message) > 1024:
+        embed_1.add_field(name="Censored Message (Truncated)", value=censored_message[:1024],inline=False)
+        embed_3 = discord.Embed(title=f"Censored Message (Full)", description=censored_message, color=discord.Color.red())
+    else:
+        embed_1.add_field(name="Censored Message", value=censored_message or "No content", inline=False)
+        
     if triggered_blacklists:
         blacklist_details = "\n".join([
             f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
             for name, terms in triggered_blacklists
         ])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_1.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
     else:
-        embed.add_field(
+        embed_1.add_field(
             name="Blocked Terms",
             value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
             inline=False
         )
-
-    embed.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed.add_field(name="Message Link", value=f"[Go to Message]({reposted_message.jump_url})", inline=False)
-    await log_channel.send(embed=embed)
+        
+    embed_1.add_field(name="Channel", value=message.channel.mention, inline=False)
+    embed_1.add_field(name="Message Link", value=f"[Go to Message]({reposted_message.jump_url})", inline=False)
+    
+    await log_channel.send(embed=embed_1)
+    if len(spoilered_content) > 1024:
+        await log_channel.send(embed=embed_2)
+    if len(censored_message) > 1024:
+        await log_channel.send(embed=embed_3)
 
 async def log_censored_thread_title(thread, censored_title, server_config):
     """Log thread title censorship."""
@@ -1145,15 +1188,11 @@ async def log_censored_thread_title(thread, censored_title, server_config):
     if not log_channel_id:
         return
 
-    log_channel = thread.guild.get_channel(log_channel_id)
+    log_channel = thread.guild.get_channel_or_thread(log_channel_id)
     if not log_channel:
         return
 
-    embed = discord.Embed(
-        title="Thread Title Censored",
-        color=discord.Color.red(),
-        timestamp=datetime.now(timezone.utc)
-    )
+    embed = discord.Embed(title="Thread Title Censored", color=discord.Color.orange(), timestamp=datetime.now(timezone.utc))
     embed.add_field(name="User", value=thread.owner.mention, inline=False)
     embed.add_field(name="Original Title", value=spoilered_content[:1024] or "No content", inline=False)
     embed.add_field(name="Censored Title", value=censored_title[:1024] or "No content", inline=False)
@@ -1174,7 +1213,7 @@ async def log_censored_thread_title(thread, censored_title, server_config):
     embed.add_field(name="Channel", value=thread.parent.mention, inline=False)
     embed.add_field(name="Thread Link", value=f"[Go to Thread]({thread.jump_url})", inline=False)
     await log_channel.send(embed=embed)
-
+    
 async def log_removed_reaction(user, emoji, message, server_config):
     """Log removed reactions."""
     triggered_blacklists = []
@@ -1192,17 +1231,14 @@ async def log_removed_reaction(user, emoji, message, server_config):
     if not log_channel_id:
         return
 
-    log_channel = message.guild.get_channel(log_channel_id)
+    log_channel = message.guild.get_channel_or_thread(log_channel_id)
     if not log_channel:
         return
 
-    embed = discord.Embed(
-        title="Reaction Removed",
-        color=discord.Color.orange(),
-        timestamp=datetime.now(timezone.utc)
-    )
+    embed = discord.Embed(title="Reaction Removed", color=discord.Color.yellow(),timestamp=datetime.now(timezone.utc))
     embed.add_field(name="User", value=user.mention, inline=False)
     embed.add_field(name="Removed Reaction", value=spoilered_content, inline=False)
+    
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
@@ -1211,6 +1247,7 @@ async def log_removed_reaction(user, emoji, message, server_config):
         embed.add_field(name="Blocked Terms",
                        value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
                        inline=False)
+                       
     embed.add_field(name="Channel", value=message.channel.mention, inline=False)
     embed.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
     await log_channel.send(embed=embed)
@@ -1221,13 +1258,7 @@ async def log_censored_display_name(member, censored_display_name, server_config
     spoilered_content = await apply_spoilers(member.display_name, None, member, server_config)
     
     for blacklist, terms in server_config.get("blacklists", {}).items():
-        blocked_terms = await get_blocked_terms(
-            member.display_name,
-            None,
-            member,
-            server_config,
-            blacklist
-        )
+        blocked_terms = await get_blocked_terms(member.display_name, None, member, server_config, blacklist)
         if blocked_terms:
             triggered_blacklists.append((blacklist, blocked_terms))
 
@@ -1238,15 +1269,11 @@ async def log_censored_display_name(member, censored_display_name, server_config
     if not log_channel_id:
         return
 
-    log_channel = member.guild.get_channel(log_channel_id)
+    log_channel = member.guild.get_channel_or_thread(log_channel_id)
     if not log_channel:
         return
 
-    embed = discord.Embed(
-        title="Display Name Censored",
-        color=discord.Color.red(),
-        timestamp=datetime.now(timezone.utc)
-    )
+    embed = discord.Embed(title="Display Name Censored", color=discord.Color.purple(), timestamp=datetime.now(timezone.utc))
     embed.add_field(name="User", value=member.mention, inline=False)
     embed.add_field(name="Original Display Name", value=spoilered_content or "No content", inline=False)
     embed.add_field(name="Censored Display Name", value=censored_display_name or "No content", inline=False)
@@ -1273,13 +1300,7 @@ async def log_scan_deletion(message: discord.Message, censored_message: str, ser
     spoilered_content = await apply_spoilers(message.content, message.channel, message.author, server_config)
     
     for blacklist, terms in server_config.get("blacklists", {}).items():
-        blocked_terms = await get_blocked_terms(
-            message.content,
-            message.channel,
-            message.author,
-            server_config,
-            blacklist
-        )
+        blocked_terms = await get_blocked_terms(message.content, message.channel, message.author, server_config, blacklist)
         if blocked_terms:
             triggered_blacklists.append((blacklist, blocked_terms))
 
@@ -1290,36 +1311,46 @@ async def log_scan_deletion(message: discord.Message, censored_message: str, ser
     if not log_channel_id:
         return
 
-    log_channel = message.guild.get_channel(log_channel_id)
+    log_channel = message.guild.get_channel_or_thread(log_channel_id)
     if not log_channel:
         return
-
-    embed = discord.Embed(
-        title="Message Deleted via Channel Scan",
-        color=discord.Color.dark_red(),
-        timestamp=datetime.now(timezone.utc)
-    )
-    embed.add_field(name="User", value=message.author.mention, inline=False)
-    embed.add_field(name="Original Message", value=spoilered_content[:1024] or "No content", inline=False)
-    embed.add_field(name="Censored Content", value=censored_message[:1024] or "No content", inline=False)
     
+    embed_1 = discord.Embed(title="Message Deleted via Channel Scan", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+    embed_1.add_field(name="User", value=message.author.mention, inline=False)   
+    
+    if len(spoilered_content) > 1024:
+        embed_1.add_field(name="Original Message (Truncated)", value=spoilered_content[:1024], inline=False)
+        embed_2 = discord.Embed(title=f"Original Message (Full)", description=spoilered_content, color=discord.Color.red())
+    else:
+        embed_1.add_field(name="Original Message", value=spoilered_content or "No content", inline=False)
+    if len(censored_message) > 1024:
+        embed_1.add_field(name="Censored Message (Truncated)", value=censored_message[:1024],inline=False)
+        embed_3 = discord.Embed(title=f"Censored Message (Full)", description=censored_message, color=discord.Color.red())
+    else:
+        embed_1.add_field(name="Censored Message", value=censored_message or "No content", inline=False)
+        
     if triggered_blacklists:
         blacklist_details = "\n".join([
             f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
             for name, terms in triggered_blacklists
         ])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_1.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
     else:
-        embed.add_field(
+        embed_1.add_field(
             name="Blocked Terms",
             value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
             inline=False
         )
-
-    embed.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
-    await log_channel.send(embed=embed)
-
+        
+    embed_1.add_field(name="Channel", value=message.channel.mention, inline=False)
+    embed_1.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
+    
+    await log_channel.send(embed=embed_1)
+    if len(spoilered_content) > 1024:
+        await log_channel.send(embed=embed_2)
+    if len(censored_message) > 1024:
+        await log_channel.send(embed=embed_3)
+    
 # Punishment System Functions
 async def check_and_apply_punishment(user: discord.Member, guild_id: int, server_config: dict):
     """Check violations and apply punishment if threshold exceeded."""
@@ -1377,7 +1408,7 @@ async def check_and_apply_punishment(user: discord.Member, guild_id: int, server
 
                 log_channel_id = server_config.get("log_channel_id")
                 if log_channel_id:
-                    log_channel = user.guild.get_channel(log_channel_id)
+                    log_channel = user.guild.get_channel_or_thread(log_channel_id)
                     if log_channel:
                         embed_log = discord.Embed(
                             title="Punishment Applied",
@@ -1404,7 +1435,7 @@ async def filter_display_name(member):
                 await log_censored_display_name(member, censored_display_name, server_config)
                 await notify_user_display_name(member, censored_display_name, server_config)
                 await check_and_apply_punishment(member, member.guild.id, server_config)
-                await member.edit(nick=censored_display_name)
+                await member.edit(nick=censored_display_name.replace("\*\*\*","***"))
             except discord.Forbidden:
                 pass
 
@@ -1607,7 +1638,7 @@ async def punishment_checker():
                             server_config = await load_server_config(guild_id)
                             log_channel_id = server_config["log_channel_id"]
                             if log_channel_id:
-                                log_channel = guild.get_channel(log_channel_id)
+                                log_channel = guild.get_channel_or_thread(log_channel_id)
                                 if log_channel:
                                     embed_lift = discord.Embed(
                                         title="Punishment Lifted",
@@ -1960,7 +1991,7 @@ async def set_moderator_role(interaction: discord.Interaction, role: discord.Rol
 
 @bot.tree.command(name="set_log_channel")
 @is_admin()
-async def set_log_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+async def set_log_channel(interaction: discord.Interaction, channel: Union[discord.Thread, discord.abc.GuildChannel]):
     """Set a log channel for filtered content activity."""
     server_config = await load_server_config(interaction.guild.id)
     server_config["log_channel_id"] = channel.id
@@ -2246,6 +2277,7 @@ async def remove_category_exception(
         category_name = category.name
     elif category_id:
         category_name = f"ID {category_id}"
+        category_id = str(category_id)
     else:
         await interaction.response.send_message("Invalid input. Please provide a category or its ID.", ephemeral=True)
         return
@@ -2278,6 +2310,7 @@ async def remove_channel_exception(
     elif channel_id:
         channel_name = f"ID {channel_id}"
         channel_mention = channel_name
+        channel_id = str(channel_id)
     else:
         await interaction.response.send_message("Invalid input. Please provide a channel or its ID.", ephemeral=True)
         return
@@ -2310,6 +2343,7 @@ async def remove_role_exception(
     elif role_id:
         role_name = f"ID {role_id}"
         role_mention = role_name
+        role_name = str(role_id)
     else:
         await interaction.response.send_message("Invalid input. Please provide a role or its ID.", ephemeral=True)
         return
@@ -2469,12 +2503,12 @@ async def list_exceptions(interaction: discord.Interaction):
     exceptions = server_config.get("exceptions", {})
 
     categories = [
-        f"{interaction.guild.get_channel(category_id).mention if interaction.guild.get_channel(category_id)
+        f"{interaction.guild.get_channel_or_thread(category_id).mention if interaction.guild.get_channel_or_thread(category_id)
         else f'ID: {category_id}'} - {', '.join(blacklist_names)}"
         for category_id, blacklist_names in exceptions.get("categories", {}).items()
     ]
     channels = [
-        f"{interaction.guild.get_channel(channel_id).mention if interaction.guild.get_channel(channel_id)
+        f"{interaction.guild.get_channel_or_thread(channel_id).mention if interaction.guild.get_channel_or_thread(channel_id)
         else f'ID: {channel_id}'} - {', '.join(blacklist_names)}"
         for channel_id, blacklist_names in exceptions.get("channels", {}).items()
     ]
@@ -2504,12 +2538,12 @@ async def list_global_exceptions(interaction: discord.Interaction):
     global_exceptions = server_config.get("global_exceptions", {})
     
     categories = [
-        interaction.guild.get_channel(category_id).mention if isinstance(interaction.guild.get_channel(category_id), discord.CategoryChannel)
+        interaction.guild.get_channel_or_thread(category_id).mention if isinstance(interaction.guild.get_channel_or_thread(category_id), discord.CategoryChannel)
         else f"ID: {category_id}" 
         for category_id in global_exceptions.get("categories", [])
     ]
     channels = [
-        interaction.guild.get_channel(channel_id).mention if interaction.guild.get_channel(channel_id) 
+        interaction.guild.get_channel_or_thread(channel_id).mention if interaction.guild.get_channel_or_thread(channel_id) 
         else f"ID: {channel_id}" 
         for channel_id in global_exceptions.get("channels", [])
     ]
@@ -2583,7 +2617,7 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
         # Log action
         log_channel_id = server_config.get("log_channel_id")
         if log_channel_id:
-            log_channel = interaction.guild.get_channel(log_channel_id)
+            log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
             if log_channel:
                 embed = discord.Embed(
                     title="Punishment Lifted",

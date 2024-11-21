@@ -1371,52 +1371,40 @@ async def check_and_apply_punishment(user: discord.Member, guild_id: int, server
             role = user.guild.get_role(role_id)
             if role:
                 if role in user.roles:
-                    print(f"User {user} already has punishment role '{role.name}'. Skipping punishment.")
                     return
-
                 try:
                     await user.add_roles(role, reason="Exceeded violation threshold.")
                 except discord.Forbidden:
-                    print(f"Failed to add role '{role.name}' to {user.display_name}. Insufficient permissions.")
                     return
                 except discord.HTTPException as e:
-                    print(f"HTTPException while adding role '{role.name}' to {user.display_name}: {e}")
                     return
 
                 expiration_time = current_time + punishment_duration
                 try:
                     await add_punishment(guild_id, user.id, role_id, expiration_time)
                 except aiosqlite.IntegrityError:
-                    print(f"Punishment already exists for user {user} in guild {guild_id}.")
                     return
-
-                embed = discord.Embed(
-                    title="Punishment Applied",
-                    color=discord.Color.dark_red(),
-                    timestamp=current_time
-                )
-                embed.add_field(name="Punishment", value=f"Temporary role: `{role.name}`", inline=False)
-                embed.add_field(name="Duration", value=str(punishment_duration), inline=False)
-                embed.add_field(name="Punishment Expires At", value=f"<t:{int(expiration_time.timestamp())}:R>", inline=False)
-                embed.add_field(name="Reason", value="Repeated violations of the server's content rules.", inline=False)
-
+                
+                embeds = []
+                embed_punish_1 = discord.Embed(title=f"{user.guild.name} Discord Server Content Filter Notification", description ="You have received a temporary role due to repeated violations of the server's content rules.", color=discord.Color.dark_red())
+                embed_punish_2 = discord.Embed(title="Punishment Applied", color=discord.Color.dark_red(), timestamp=current_time)
+                embed_punish_2.add_field(name="Punishment", value=f"Temporary role: `{role.name}`", inline=False)
+                embed_punish_2.add_field(name="Duration", value=str(punishment_duration), inline=False)
+                embed_punish_2.add_field(name="Punishment Expires At", value=f"<t:{int(expiration_time.timestamp())}:R>", inline=False)
+                embed_punish_2.add_field(name="Reason", value="Repeated violations of the server's content rules.", inline=False)
+                embeds.append(embed_punish_1)
+                embeds.append(embed_punish_2)
+                
                 try:
-                    await user.send(
-                        content="You have received a temporary role due to repeated violations of the server's content rules.",
-                        embed=embed
-                    )
+                    await user.send(embeds=embeds)
                 except discord.Forbidden:
-                    print(f"Unable to send DM to {user.display_name} ({user.id}).")
+                    pass
 
                 log_channel_id = server_config.get("log_channel_id")
                 if log_channel_id:
                     log_channel = user.guild.get_channel_or_thread(log_channel_id)
                     if log_channel:
-                        embed_log = discord.Embed(
-                            title="Punishment Applied",
-                            color=discord.Color.dark_red(),
-                            timestamp=current_time
-                        )
+                        embed_log = discord.Embed(title="Punishment Applied", color=discord.Color.dark_red(), timestamp=current_time)
                         embed_log.add_field(name="User", value=user.mention, inline=False)
                         embed_log.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
                         embed_log.add_field(name="Duration", value=str(punishment_duration), inline=False)
@@ -1629,15 +1617,15 @@ async def punishment_checker():
                         try:
                             await member.remove_roles(role, reason="Punishment duration expired.")
                             try:
-                                embed_lift = discord.Embed(
-                                    title="Punishment Lifted",
-                                    color=discord.Color.green(),
-                                    timestamp=datetime.now(timezone.utc)
-                                )
-                                embed_lift.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
-                                embed_lift.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
-                                embed_lift.add_field(name="Reason", value="Punishment duration has expired.", inline=False)
-                                await member.send(embed_lift)
+                                embeds = []
+                                embed_lift_1 = discord.Embed(title=f"{guild.name} Discord Server Content Filter Notification", description ="Your punishment role has been lifted. Please adhere to the server rules to avoid future punishments.", color=discord.Color.green())
+                                embed_lift_2 = discord.Embed(title="Punishment Lifted", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
+                                embed_lift_2.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
+                                embed_lift_2.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
+                                embed_lift_2.add_field(name="Reason", value="Punishment duration has expired.", inline=False)
+                                embeds.append(embed_lift_1)
+                                embeds.append(embed_lift_2)
+                                await member.send(embeds=embeds)
                             except discord.Forbidden:
                                 print(f"Unable to send DM to {member.display_name} ({member.id}).")
 
@@ -1646,11 +1634,7 @@ async def punishment_checker():
                             if log_channel_id:
                                 log_channel = guild.get_channel_or_thread(log_channel_id)
                                 if log_channel:
-                                    embed_lift = discord.Embed(
-                                        title="Punishment Lifted",
-                                        color=discord.Color.green(),
-                                        timestamp=datetime.now(timezone.utc)
-                                    )
+                                    embed_lift = discord.Embed(title="Punishment Lifted", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
                                     embed_lift.add_field(name="User", value=member.mention, inline=False)
                                     embed_lift.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
                                     embed_lift.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
@@ -2593,10 +2577,7 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
             punishments = await cursor.fetchall()
 
     if not punishments:
-        await interaction.response.send_message(
-            f"{member.mention} has no active punishments.", 
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"{member.mention} has no active punishments.", ephemeral=True)
         return
 
     try:
@@ -2609,14 +2590,15 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
             await db.commit()
 
         try:
-            embed = discord.Embed(
-                title="Punishment Lifted",
-                color=discord.Color.green(),
-                timestamp=datetime.now(timezone.utc)
-            )
-            embed.add_field(name="Punishment Role", value=f"`{punishment_role.name}`", inline=False)
-            embed.add_field(name="Action", value="Punishment manually lifted.", inline=False)
-            await member.send(embed=embed)
+            embeds = []
+            embed_lift_1 = discord.Embed(title=f"{member.guild.name} Discord Server Content Filter Notification", description ="Your punishment role has been lifted by a staff member.", color=discord.Color.green())
+            embed_lift_2 = discord.Embed(title="Punishment Lifted",color=discord.Color.green(),timestamp=datetime.now(timezone.utc))
+            embed_lift_2.add_field(name="Punishment Role", value=f"`{punishment_role.name}`", inline=False)
+            embed_lift_2.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
+            embed_lift_2.add_field(name="Reason", value="Punishment manually lifted.", inline=False)
+            embeds.append(embed_lift_1)
+            embeds.append(embed_lift_2)
+            await member.send(embeds=embeds)
         except discord.Forbidden:
             pass
 
@@ -2624,31 +2606,19 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
         if log_channel_id:
             log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
             if log_channel:
-                embed = discord.Embed(
-                    title="Punishment Lifted",
-                    color=discord.Color.green(),
-                    timestamp=datetime.now(timezone.utc)
-                )
+                embed = discord.Embed(title="Punishment Lifted", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
                 embed.add_field(name="User", value=member.mention, inline=False)
                 embed.add_field(name="Punishment Role", value=f"`{punishment_role.name}`", inline=False)
-                embed.add_field(name="Action", value="Punishment manually lifted.", inline=False)
+                embed.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
+                embed.add_field(name="Reason", value="Punishment manually lifted.", inline=False)
                 await log_channel.send(embed=embed)
 
-        await interaction.response.send_message(
-            f"Punishment role removed from {member.mention}.",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"Punishment role removed from {member.mention}.", ephemeral=True)
 
     except discord.Forbidden:
-        await interaction.response.send_message(
-            "Insufficient permissions to remove roles.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("Insufficient permissions to remove roles.", ephemeral=True)
     except Exception as e:
-        await interaction.response.send_message(
-            f"Error removing punishment: {e}",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"Error removing punishment: {e}", ephemeral=True)
 
 @bot.tree.command(name="scan_last_messages")
 @app_commands.describe(
@@ -2659,10 +2629,7 @@ async def scan_last_messages(interaction: discord.Interaction, limit: int):
     """Scan the last specified number of messages in the channel and delete those containing blacklisted content."""
     MAX_LIMIT = 10000
     if limit < 1 or limit > MAX_LIMIT:
-        await interaction.response.send_message(
-            f"Please provide a number between 1 and {MAX_LIMIT}.",
-            ephemeral=True
-        )
+        await interaction.response.send_message(f"Please provide a number between 1 and {MAX_LIMIT}.", ephemeral=True)
         return
 
     server_config = await load_server_config(interaction.guild.id)
@@ -2671,10 +2638,7 @@ async def scan_last_messages(interaction: discord.Interaction, limit: int):
     scanned_count = 0
 
     await interaction.response.defer(ephemeral=True)
-    progress_message = await interaction.followup.send(
-        f"Starting scan of {limit} messages. Progress: 0% (0/{limit} messages scanned).", 
-        ephemeral=True
-    )
+    progress_message = await interaction.followup.send(f"Starting scan of {limit} messages. Progress: 0% (0/{limit} messages scanned).", ephemeral=True)
 
     try:
         async for message in channel.history(limit=limit):
@@ -2682,9 +2646,7 @@ async def scan_last_messages(interaction: discord.Interaction, limit: int):
             progress_percent = int((scanned_count / limit) * 100)
             
             if scanned_count % 10 == 0 or scanned_count == limit:
-                await progress_message.edit(
-                    content=f"Scanning messages... Progress: {progress_percent}% ({scanned_count}/{limit} messages scanned)."
-                )
+                await progress_message.edit(content=f"Scanning messages... Progress: {progress_percent}% ({scanned_count}/{limit} messages scanned).")
 
             if message.author == bot.user or message.author.bot:
                 continue

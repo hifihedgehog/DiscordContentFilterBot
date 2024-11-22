@@ -467,8 +467,7 @@ async def get_blacklist_pattern(term: str) -> regex.Pattern:
 
             def create_subpatterns(base_term: str):
                 word_pattern = word_boundary_start + regex.escape(base_term) + word_boundary_end
-                spaced_pattern = word_boundary_start + r'\s+'.join(regex.escape(char) for char in base_term) + word_boundary_end
-                obfuscated_pattern = word_boundary_start + r'[^\w\s]*'.join(regex.escape(char) for char in base_term) + word_boundary_end
+                obfuscated_pattern = word_boundary_start + r'[^\w]*'.join(regex.escape(char) for char in base_term) + word_boundary_end
                 md_markers_class = ''.join(map(regex.escape, MARKDOWN_MARKERS))
                 markdown_intermediate = ''.join(
                     f'{regex.escape(char)}(?:[{md_markers_class}]*)'
@@ -476,7 +475,7 @@ async def get_blacklist_pattern(term: str) -> regex.Pattern:
                 )
                 markdown_last_char = regex.escape(base_term[-1])
                 markdown_pattern = word_boundary_start + markdown_intermediate + markdown_last_char + word_boundary_end
-                return [word_pattern, spaced_pattern, obfuscated_pattern, markdown_pattern]
+                return [word_pattern, obfuscated_pattern, markdown_pattern]
             subpatterns = (
                 create_subpatterns(term)
                 + create_subpatterns(normalized_term)

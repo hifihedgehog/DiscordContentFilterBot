@@ -1373,7 +1373,7 @@ async def check_and_apply_punishment(user: discord.Member, guild_id: int, server
                 if role in user.roles:
                     return
                 try:
-                    await user.add_roles(role, reason="Exceeded violation threshold.")
+                    await user.add_roles(role, reason="Repeated violations of the server's content rules.")
                 except discord.Forbidden:
                     return
                 except discord.HTTPException as e:
@@ -1609,7 +1609,7 @@ async def punishment_checker():
                     
                     if member and role:
                         try:
-                            await member.remove_roles(role, reason="Punishment duration expired.")
+                            await member.remove_roles(role, reason="Punishment duration has expired.")
                             try:
                                 embeds = []
                                 embed_lift_1 = discord.Embed(title=f"{guild.name} Discord Server Content Filter Notification", description ="Your punishment role has been lifted. Please adhere to the server rules to avoid future punishments.", color=discord.Color.green())
@@ -1632,6 +1632,7 @@ async def punishment_checker():
                                     embed_lift.add_field(name="User", value=member.mention, inline=False)
                                     embed_lift.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
                                     embed_lift.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
+                                    embed_lift.add_field(name="Punishment Lifted By", value=f"{bot.user.mention}", inline=False)
                                     embed_lift.add_field(name="Reason", value="Punishment duration has expired.", inline=False)
                                     await log_channel.send(embed=embed_lift)
                         except discord.Forbidden:
@@ -2455,8 +2456,11 @@ async def list_global_exceptions(interaction: discord.Interaction):
 # Commands - Moderation
 @bot.tree.command(name="lift_punishment")
 @is_moderator()
-@app_commands.describe(member="The member to lift punishment from")
-async def lift_punishment(interaction: discord.Interaction, member: discord.Member):
+@app_commands.describe(
+    member="The member to lift punishment from",
+    reason="The reason for lifting the punishment"
+)
+async def lift_punishment(interaction: discord.Interaction, member: discord.Member, reason: Optional[str]):
     """Lift punishment from a member."""
     server_config = await load_server_config(interaction.guild.id)
     punishment_role_id = server_config["punishments"]["punishment_role"]
@@ -2482,7 +2486,7 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
         return
 
     try:
-        await member.remove_roles(punishment_role, reason="Punishment manually lifted.")
+        await member.remove_roles(punishment_role, reason=reason if reason is not None else "Punishment manually lifted.")
         async with aiosqlite.connect(DATABASE_PATH) as db:
             await db.executemany("""
                 DELETE FROM punishments
@@ -2496,7 +2500,7 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
             embed_lift_2 = discord.Embed(title="Punishment Lifted",color=discord.Color.green(),timestamp=datetime.now(timezone.utc))
             embed_lift_2.add_field(name="Punishment Role", value=f"`{punishment_role.name}`", inline=False)
             embed_lift_2.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
-            embed_lift_2.add_field(name="Reason", value="Punishment manually lifted.", inline=False)
+            embed_lift_2.add_field(name="Reason", value=reason if reason is not None else "Punishment manually lifted.", inline=False)
             embeds.append(embed_lift_1)
             embeds.append(embed_lift_2)
             await member.send(embeds=embeds)
@@ -2511,7 +2515,8 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
                 embed.add_field(name="User", value=member.mention, inline=False)
                 embed.add_field(name="Punishment Role", value=f"`{punishment_role.name}`", inline=False)
                 embed.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
-                embed.add_field(name="Reason", value="Punishment manually lifted.", inline=False)
+                embed.add_field(name="Punishment Lifted By", value=f"{interaction.user.mention}", inline=False)
+                embed.add_field(name="Reason", value=reason if reason is not None else "Punishment manually lifted.", inline=False)
                 await log_channel.send(embed=embed)
 
         await interaction.response.send_message(f"Punishment role removed from {member.mention}.", ephemeral=True)

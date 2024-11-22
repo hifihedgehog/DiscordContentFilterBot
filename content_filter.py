@@ -254,8 +254,8 @@ async def load_server_config(guild_id: int) -> dict:
                 config.setdefault("exceptions", {"categories": {}, "channels": {}, "roles": {}})
 
                 for key in ["categories", "channels", "roles"]:
-                    config["global_exceptions"].setdefault(key, [])
-                    config["exceptions"].setdefault(key, {})
+                    config["global_exceptions"][key] = [int(value) for value in config["global_exceptions"].get(key, [])]
+                    config["exceptions"][key] = {int(k): v for k, v in config["exceptions"].get(key, {}).items()}
 
                 config.setdefault("moderator_role_id", None)
                 server_config_cache[guild_id] = config
@@ -1724,90 +1724,40 @@ class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):
             try:
                 webhook = await interaction.client.fetch_webhook(self.webhook_id)
                 if isinstance(self.message.channel, discord.Thread):
-                    await webhook.edit_message(
-                        self.message.id,
-                        content=censored_message,
-                        thread=self.message.channel
-                    )
+                    await webhook.edit_message(self.message.id, content=censored_message, thread=self.message.channel)
                 else:
-                    await webhook.edit_message(
-                        self.message.id,
-                        content=censored_message
-                    )
+                    await webhook.edit_message(self.message.id, content=censored_message)
                 if self.edited_message.value != censored_message:
                     spoilered_content = await apply_spoilers(self.edited_message.value, self.message.channel, interaction.user, server_config)
                     triggered_blacklists = []
                     for blacklist, terms in server_config.get("blacklists", {}).items():
-                        blocked_terms = await get_blocked_terms(
-                            self.edited_message.value,
-                            self.message.channel,
-                            interaction.user,
-                            server_config,
-                            blacklist
-                        )
+                        blocked_terms = await get_blocked_terms(self.edited_message.value, self.message.channel, interaction.user, server_config, blacklist)
                         if blocked_terms:
                             triggered_blacklists.append((blacklist, blocked_terms))
 
                     if not triggered_blacklists:
-                        blocked_terms = await get_blocked_terms(
-                            self.edited_message.value,
-                            self.message.channel,
-                            interaction.user,
-                            server_config,
-                        )
+                        blocked_terms = await get_blocked_terms(self.edited_message.value, self.message.channel, interaction.user, server_config)
                     else:
                         blocked_terms = [term for _, terms in triggered_blacklists for term in terms]
-                    embed = discord.Embed(
-                        title="Message Censored",
-                        color=discord.Color.dark_red(),
-                        timestamp=datetime.now(timezone.utc)
-                    )
-                    embed.add_field(
-                        name="Your Message with Blocked Terms Hidden",
-                        value=spoilered_content[:1024] or "No content",
-                        inline=False
-                    )
+                    embed = discord.Embed(title="Message Censored", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+                    embed.add_field(name="Your Message With Blocked Terms Hidden", value=spoilered_content[:1024] or "No content", inline=False)
                     if triggered_blacklists:
                         blacklist_details = "\n".join([
                             f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                             for name, terms in triggered_blacklists
                         ])
-                        embed.add_field(
-                            name="Triggered Blacklists",
-                            value=blacklist_details,
-                            inline=False
-                        )
+                        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
                     else:
-                        embed.add_field(
-                            name="Blocked Terms",
-                            value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
-                            inline=False
-                        )
-                    await interaction.followup.send(
-                        content="Your edited message was filtered because it contains blacklisted content.",
-                        embed=embed,
-                        ephemeral=True
-                    )
+                        embed.add_field(name="Blocked Terms", value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched", inline=False)
+                    await interaction.followup.send(content="Your edited message was filtered because it contains blacklisted content.", embed=embed, ephemeral=True)
                 else:
-                    await interaction.followup.send(
-                        "Your message has been successfully updated.",
-                        ephemeral=True
-                    )
+                    await interaction.followup.send("Your message has been successfully updated.", ephemeral=True)
             except discord.NotFound:
-                await interaction.followup.send(
-                    "Original message not found.",
-                    ephemeral=True
-                )
+                await interaction.followup.send("Original message not found.", ephemeral=True)
             except discord.Forbidden:
-                await interaction.followup.send(
-                    "Cannot edit the message.",
-                    ephemeral=True
-                )
+                await interaction.followup.send("Cannot edit the message.", ephemeral=True)
             except discord.HTTPException as e:
-                await interaction.followup.send(
-                    f"Failed to edit the message: {e}",
-                    ephemeral=True
-                )
+                await interaction.followup.send(f"Failed to edit the message: {e}", ephemeral=True)
 
 # Selection View Classes
 class BlacklistSelectView(discord.ui.View):
@@ -1815,26 +1765,13 @@ class BlacklistSelectView(discord.ui.View):
     def __init__(self, blacklists):
         super().__init__()
         sorted_blacklist_names = sorted(blacklists.keys(), key=lambda x: x.lower())
-        options = [
-            discord.SelectOption(
-                label=bl_name,
-                description=f"Edit the \"{bl_name}\" blacklist",
-                emoji="📝"
-            )
-            for bl_name in sorted_blacklist_names[:25]
-        ]
+        options = [discord.SelectOption(label=bl_name, description=f"Edit the \"{bl_name}\" blacklist", emoji="📝") for bl_name in sorted_blacklist_names[:25]]
         self.add_item(BlacklistSelect(options))
 
 class BlacklistSelect(discord.ui.Select):
     """Dropdown for selecting a blacklist."""
     def __init__(self, options):
-        super().__init__(
-            placeholder="Choose a blacklist to edit...",
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id="blacklist_select"
-        )
+        super().__init__(placeholder="Choose a blacklist to edit...", min_values=1, max_values=1, options=options, custom_id="blacklist_select")
 
     async def callback(self, interaction: discord.Interaction):
         selected_name = self.values[0]
@@ -1860,13 +1797,7 @@ class WhitelistSelectView(discord.ui.View):
 class WhitelistSelect(discord.ui.Select):
     """Dropdown for selecting a whitelist."""
     def __init__(self, options):
-        super().__init__(
-            placeholder="Choose a whitelist to edit...",
-            min_values=1,
-            max_values=1,
-            options=options,
-            custom_id="whitelist_select"
-        )
+        super().__init__(placeholder="Choose a whitelist to edit...", min_values=1, max_values=1, options=options, custom_id="whitelist_select")
 
     async def callback(self, interaction: discord.Interaction):
         selected_name = self.values[0]
@@ -2160,9 +2091,7 @@ async def add_category_exception(interaction: discord.Interaction, category: dis
     blacklists = server_config.get("blacklists", {})
     
     if blacklist_name not in blacklists:
-        await interaction.response.send_message(
-            f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True
-        )
+        await interaction.response.send_message(f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True)
         return
 
     exceptions = server_config.setdefault("exceptions", {"channels": {}, "categories": {}, "roles": {}})
@@ -2173,13 +2102,9 @@ async def add_category_exception(interaction: discord.Interaction, category: dis
     if blacklist_name not in exceptions["categories"][category_id]:
         exceptions["categories"][category_id].append(blacklist_name)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(
-            f"Added exception for category {category.name} to blacklist '{blacklist_name}'."
-        )
+        await interaction.response.send_message(f"Added exception for category {category.name} to blacklist '{blacklist_name}'.")
     else:
-        await interaction.response.send_message(
-            f"Category {category.name} is already excepted from '{blacklist_name}'.", ephemeral=True
-        )
+        await interaction.response.send_message(f"Category {category.name} is already excepted from '{blacklist_name}'.", ephemeral=True)
 
 @bot.tree.command(name="add_channel_exception")
 @is_admin()
@@ -2193,9 +2118,7 @@ async def add_channel_exception(
     blacklists = server_config.get("blacklists", {})
 
     if blacklist_name not in blacklists:
-        await interaction.response.send_message(
-            f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True
-        )
+        await interaction.response.send_message(f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True)
         return
 
     exceptions = server_config.setdefault("exceptions", {"channels": {}, "categories": {}, "roles": {}})
@@ -2210,9 +2133,7 @@ async def add_channel_exception(
             f"Added exception for {channel.mention} to blacklist '{blacklist_name}'."
         )
     else:
-        await interaction.response.send_message(
-            f"{channel.mention} is already excepted from '{blacklist_name}'.", ephemeral=True
-        )
+        await interaction.response.send_message(f"{channel.mention} is already excepted from '{blacklist_name}'.", ephemeral=True)
 
 @bot.tree.command(name="add_role_exception")
 @is_admin()
@@ -2222,9 +2143,7 @@ async def add_role_exception(interaction: discord.Interaction, role: discord.Rol
     blacklists = server_config.get("blacklists", {})
 
     if blacklist_name not in blacklists:
-        await interaction.response.send_message(
-            f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True
-        )
+        await interaction.response.send_message(f"The blacklist '{blacklist_name}' does not exist.", ephemeral=True)
         return
 
     exceptions = server_config.setdefault("exceptions", {"channels": {}, "categories": {}, "roles": {}})
@@ -2235,13 +2154,9 @@ async def add_role_exception(interaction: discord.Interaction, role: discord.Rol
     if blacklist_name not in exceptions["roles"][role_id]:
         exceptions["roles"][role_id].append(blacklist_name)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(
-            f"Added exception for role {role.name} to blacklist '{blacklist_name}'."
-        )
+        await interaction.response.send_message(f"Added exception for role {role.name} to blacklist '{blacklist_name}'.")
     else:
-        await interaction.response.send_message(
-            f"Role {role.name} is already excepted from '{blacklist_name}'.", ephemeral=True
-        )
+        await interaction.response.send_message(f"Role {role.name} is already excepted from '{blacklist_name}'.", ephemeral=True)
 
 @bot.tree.command(name="remove_category_exception")
 @is_admin()
@@ -2255,11 +2170,11 @@ async def remove_category_exception(
     server_config = await load_server_config(interaction.guild.id)
 
     if category:
-        category_id = str(category.id)
+        category_id = category.id
         category_name = category.name
     elif category_id:
         category_name = f"ID {category_id}"
-        category_id = str(category_id)
+        category_id = int(category_id)
     else:
         await interaction.response.send_message("Invalid input. Please provide a category or its ID.", ephemeral=True)
         return
@@ -2286,13 +2201,13 @@ async def remove_channel_exception(
     server_config = await load_server_config(interaction.guild.id)
 
     if channel:
-        channel_id = str(channel.id)
+        channel_id = channel.id
         channel_name = channel.name
         channel_mention = channel.mention
     elif channel_id:
         channel_name = f"ID {channel_id}"
         channel_mention = channel_name
-        channel_id = str(channel_id)
+        channel_id = int(channel_id)
     else:
         await interaction.response.send_message("Invalid input. Please provide a channel or its ID.", ephemeral=True)
         return
@@ -2319,13 +2234,13 @@ async def remove_role_exception(
     server_config = await load_server_config(interaction.guild.id)
 
     if role:
-        role_id = str(role.id)
+        role_id = role.id
         role_name = role.name
         role_mention = role.mention
     elif role_id:
         role_name = f"ID {role_id}"
         role_mention = role_name
-        role_name = str(role_id)
+        role_name = int(role_id)
     else:
         await interaction.response.send_message("Invalid input. Please provide a role or its ID.", ephemeral=True)
         return
@@ -2499,11 +2414,7 @@ async def list_exceptions(interaction: discord.Interaction):
         for role_id, blacklist_names in exceptions.get("roles", {}).items()
     ]
 
-    embed = discord.Embed(
-        title="Exceptions",
-        color=discord.Color.green(),
-        timestamp=datetime.now(timezone.utc)
-    )
+    embed = discord.Embed(title="Exceptions", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
     embed.add_field(name="Categories", value="\n".join(categories) if categories else "None", inline=False)
     embed.add_field(name="Channels", value="\n".join(channels) if channels else "None", inline=False)
     embed.add_field(name="Roles", value="\n".join(roles) if roles else "None", inline=False)
@@ -2534,11 +2445,7 @@ async def list_global_exceptions(interaction: discord.Interaction):
         for role_id in global_exceptions.get("roles", [])
     ]
     
-    embed = discord.Embed(
-        title="Global Exceptions",
-        color=discord.Color.blue(),
-        timestamp=datetime.now(timezone.utc)
-    )
+    embed = discord.Embed(title="Global Exceptions", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
     embed.add_field(name="Categories", value=", ".join(categories) if categories else "None", inline=False)
     embed.add_field(name="Channels", value=", ".join(channels) if channels else "None", inline=False)
     embed.add_field(name="Roles", value=", ".join(roles) if roles else "None", inline=False)
@@ -2681,8 +2588,7 @@ async def edit_censored_message(interaction: discord.Interaction, message: disco
         await interaction.response.send_message("Unauthorized to edit.", ephemeral=True)
         return
 
-    modal = EditMessageModal(message, interaction.guild.id, 
-                           message_info["webhook_id"], message_info["webhook_token"])
+    modal = EditMessageModal(message, interaction.guild.id, message_info["webhook_id"], message_info["webhook_token"])
     await interaction.response.send_modal(modal)
 
 @bot.tree.context_menu(name="Delete Censored Message")

@@ -849,10 +849,10 @@ async def repost_as_user(message: discord.Message, censored_message: str) -> dis
     
     if isinstance(author, discord.Member):
         username = author.display_name
-        avatar_url = author.avatar.url if author.avatar else None
+        avatar_url = author.display_avatar.url if author.avatar else None
     else:
         username = author.name
-        avatar_url = author.avatar.url if author.avatar else None
+        avatar_url = author.display_avatar.url if author.avatar else None
 
     send_kwargs = {
         'content': censored_message[:2000],
@@ -1477,11 +1477,8 @@ async def on_message(message):
         return
         
     server_config = await load_server_config(message.guild.id)
-    if isinstance(message.channel, (discord.TextChannel, discord.ForumChannel, 
-                                  discord.Thread, discord.VoiceChannel, discord.StageChannel)):
-        censored_message_content = await censor_message(
-            message.content, message.channel, message.author, server_config
-        )
+    if isinstance(message.channel, (discord.TextChannel, discord.ForumChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+        censored_message_content = await censor_message(message.content, message.channel, message.author, server_config)
         if censored_message_content != message.content:
             await message_deletion_queue.put(message) 
             reposted_message = await repost_as_user(message, censored_message_content)
@@ -1496,22 +1493,17 @@ async def on_message(message):
 async def on_raw_message_edit(payload):
     """Handle message edits."""
     channel = bot.get_channel(payload.channel_id)
-    if not isinstance(channel, (discord.TextChannel, discord.ForumChannel, 
-                              discord.Thread, discord.VoiceChannel, discord.StageChannel)):
-        return
-        
+    if not isinstance(channel, (discord.TextChannel, discord.ForumChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+        return    
     try:
         message = await channel.fetch_message(payload.message_id)
     except discord.NotFound:
-        return
-        
+        return     
     if message.author == bot.user or not message.guild:
         return
         
     server_config = await load_server_config(message.guild.id)
-    censored_message_content = await censor_message(
-        message.content, channel, message.author, server_config
-    )
+    censored_message_content = await censor_message(message.content, channel, message.author, server_config)
     if censored_message_content != message.content:
         await message_deletion_queue.put(message) 
         reposted_message = await repost_as_user(message, censored_message_content)
@@ -1536,18 +1528,26 @@ async def on_thread_create(thread):
             print(f"Error editing thread title: {e}")
 
 @bot.event
-async def on_thread_update(before, after):
-    """Handle thread updates."""
-    server_config = await load_server_config(after.guild.id)
-    censored_title = await censor_message(after.name, after, after.owner, server_config)
-    
-    if censored_title != after.name:
+async def on_raw_thread_update(payload):
+    """Handle raw thread updates."""
+    guild = bot.get_guild(payload.guild_id)
+    if not guild:
+        return
+    try:
+        thread = await guild.fetch_channel(payload.thread_id)
+    except discord.NotFound:
+        print(f"Thread with ID {payload.thread_id} not found.")
+        return
+
+    server_config = await load_server_config(thread.guild.id)
+    censored_title = await censor_message(thread.name, thread, thread.owner, server_config)
+    if censored_title != thread.name:
         try:
-            if after.owner:
-                await notify_user_thread_title(after, censored_title, server_config)
-            await log_censored_thread_title(after, censored_title, server_config)
-            await after.edit(name=censored_title.replace("\*\*\*","***"))
-            await check_and_apply_punishment(after.owner, after.guild.id, server_config)
+            if thread.owner:
+                await notify_user_thread_title(thread, censored_title, server_config)
+            await log_censored_thread_title(thread, censored_title, server_config)
+            await thread.edit(name=censored_title.replace("\*\*\*", "***"))
+            await check_and_apply_punishment(thread.owner, thread.guild.id, server_config)
         except (discord.Forbidden, discord.HTTPException) as e:
             print(f"Error editing thread title: {e}")
     
@@ -1570,16 +1570,10 @@ async def on_raw_reaction_add(payload):
     except discord.NotFound:
         return
     emoji = payload.emoji
-    reaction = discord.Reaction(
-        message=message,
-        data={'count': None, 'me': None, 'emoji': emoji},
-        emoji=emoji
-    )
+    reaction = discord.Reaction(message=message,data={'count': None, 'me': None, 'emoji': emoji}, emoji=emoji)
     
     server_config = await load_server_config(message.guild.id)
-    censored_emoji = await censor_message(
-        str(reaction.emoji), message.channel, user, server_config
-    )
+    censored_emoji = await censor_message(str(reaction.emoji), message.channel, user, server_config)
     if censored_emoji != str(reaction.emoji):
         await log_removed_reaction(user, str(reaction.emoji), reaction.message, server_config)
         await notify_user_reaction_removal(user, str(reaction.emoji), reaction.message, server_config)

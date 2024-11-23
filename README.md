@@ -39,7 +39,7 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
   - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.
-  - But sometimes simpler solutions are all that is needed. That's where global exceptions come in. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt everywhere... done and done!
+  - But sometimes the best solutions are the simplest ones. That's where global exceptions come in. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt from all blacklists period... done and done!
   - Better still, you can combine the two of these and it will just automagically work!
 
 - **Automated Punishments**

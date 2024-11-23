@@ -13,8 +13,8 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 ## Features
 
 - **Content Filtering**
-  - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and incoming emojis. Just add a blacklist or whitelist from a variety of sources.
-  - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is suited perfectly for that task!
+  - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and incoming emojis. Add your first blacklist and optionally whitelist from a variety of sources.
+  - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is suited perfectly up to the task!
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)
@@ -23,7 +23,7 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank when indicating the blacklist edit command to call up and drill through the full list of current blacklists. Or specify a new or current list via the parameter. Same thing with whitelists as well.
   - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand and short supply.
   - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, lookalike Unicode characters, stray spaces, and special characters sandwiched in-between... you name it! We left no stone unturned!
-  - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste in https://discord.gg/ to a blacklist, and kiss that invite spam goodbye for good!
+  - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste https://discord.gg/ into a blacklist, and kiss that invite spam goodbye for good!
   - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so your users' formatting is always fully respected in the censoring process.
   - Performance was a very important consideration during the design and optimization phase. Instant replacement is a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
 
@@ -31,11 +31,10 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
   - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
   - Best of all, we exclusively offer full editing and deleting on all censored posts to the users they belong to. Of course, we made sure our same tried-and-tested filtering system blocks and advises users there as well. Plus even staff are empowered to edit and delete censored messages in users' behalf as well.
-  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users just spent so many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear--of course, fully censored wherever necessary on your own terms.
-
+  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users just spent so many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear—of course, fully censored wherever necessary on your own terms.
 
 - **Advanced Exceptions System**
-  - We completely understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least quite not as much. 
+  - We completely understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least not quite as much. 
   - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
   - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.

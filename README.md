@@ -1,6 +1,6 @@
 # Discord Content Filter Bot
 
-A comprehensive Discord moderation bot that provides automated content filtering, custom blacklists/whitelists, and an advanced punishment system.
+A feature-rich and carefully crafted Discord censoring bot that provides automated content filtering, custom blacklists/whitelists, and an advanced punishment system. This meets and beats algorithmically a certain very popular paid bot service while also packing in support for long Nitro length messages and even allowing users to edit and delete their censored messages.
 
 ## Important: SQLite WAL2 Requirement
 
@@ -13,34 +13,51 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 ## Features
 
 - **Content Filtering**
-  - Custom blacklists and whitelists
-  - Pattern matching with regex support
-  - Obfuscation detection
-  - URL and emoji handling
-  - Markdown-aware filtering
+  - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and incoming emojis. Just add a blacklist or whitelist from a variety of sources.
+  - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is suited perfectly for that task!
+    - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
+    - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
+    - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)
+    - [FreeWebHeaders.com](https://www.freewebheaders.com/category/profanity/profanity-word-list/)
+  - Create, modify, and delete your own blacklists and whitelists with no limits on the number of either, all via the mere stroke of a slash command!
+  - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank to drill through the full list of current blacklists. Or specify a new or current list via the parameter.
+  - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when speedy fingers are in high demand.
+  - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, special lookalike Unicode characters, stray spaces and special characters sandwiched in-between.. you name it! We left no stone unturned!
+  - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste in https://discord.gg/ to a blacklist, and kiss that invite goodbye for good!
+  - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so you and your user's formatting is always fully respected in the censoring process.
+
+- **Reposted Bot Messages**
+  - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
+  - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages.
+  - Best of all, we exclusively offer full edit and deletion--also fully filtered--on all censored posts.
+  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. No dumb truncation--that full wall of text your users spent hours to thoughtfully write will always come through loud and clear, censored wherever necessary on your terms.
+
 
 - **Advanced Exceptions System**
-  - Channel-specific exceptions
-  - Category-wide exceptions
-  - Role-based exceptions
-  - Global exception management
+  - We understand that many servers have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least not as much. 
+  - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
+  - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
+  - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.
+  - But sometimes simpler solutions are also needed. That's where global exceptions come in. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt everywhere... done and done!
 
 - **Automated Punishments**
-  - Configurable violation thresholds
-  - Time-based punishment windows
-  - Automated role assignments
-  - Punishment duration management
+  - Of course, you may have need to wrangle in some users and you can say exactly when that happens with the bot controlled mute punishments.
+  - These can be set to whatever mute role you specify.
+  - They occur after a given number of violations over however many minutes you say.
+  - Then the punishment goes for as many hours as you say. You're the boss. You're are in complete command!
+  - Once all of these are set, you are off. The bot handles it all automagically. Even if it goes offline momentarily, the database stores exactly when a punishment started and when it should end, so the bot picks up where it left off and removes the mute role precisely when it means to.
 
 - **Display Name Filtering**
-  - Optional nickname/display name filtering
-  - Automated enforcement
-  - Configurable restrictions
+  - As another powerful option, you can have display names filtered. Whenever someone joins or updates their profile, the bot is one step ahead of them.
+  - Of course as well, global role exclusions also apply here.
+  - Best of all, the violation tracking patches in seamlessly here too.
+  - Don't like it? Turn it off.
 
 - **Comprehensive Logging**
-  - Detailed audit logs
-  - User notifications
-  - Action tracking
-  - Violation history
+  - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field, which shows up both in the your configured log channel and the server audit logs.
+  - Users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering.
+  - Everything is transparent to both you and them in the DMs and the logs. You can both see exactly what blacklists and terms triggered their censor.
+  - You can easily see an at-a-glance history of violations all from the log channel, noting when punishments were applied and whenever they were lifted, either automatically by the bot or manually by a staff member via the lift punishment command.
 
 ## Requirements
 
@@ -146,7 +163,7 @@ The bot uses a JSON-based configuration system with the following main component
 ```
 
 ## Contributing
-
+Do you want to help make this bot even better? Follow these five super simple steps!
 1. Fork the repository
 2. Create a feature branch
 3. Commit your changes

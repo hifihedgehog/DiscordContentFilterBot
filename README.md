@@ -59,9 +59,12 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 
 - **Automated Punishments**
   - Of course, you may have need to wrangle in some users who need special handling, and you can say exactly when that happens with our bot-controlled mute punishments.
-  - These can be set to whatever mute role you specify.
-  - They occur after a given number of violations over however many minutes you say.
-  - Then the punishment goes for as many hours as you say. You're the boss. You're are in complete command!
+    - These can be set to whatever mute role you specify.
+    - They occur after a given number of violations over however many minutes you say.
+    - Then the punishment goes for as many hours as you say. You're the boss. You're are in complete command!
+
+    ![ezgif-7-481cf8f18f](https://github.com/user-attachments/assets/4f80f52e-d344-4f7f-bc02-9079a0451d58)
+
   - Once all of these are set, you are off. The bot handles it all automagically. Even if it goes offline momentarily, the database stores exactly when a punishment started and knows exactly when it should end, so the bot picks up where it left off and removes the mute role precisely when it means to.
 
 - **Display Name Filtering**
@@ -70,17 +73,24 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - Best of all, the violation tracking patches in seamlessly here too. So if someone keeps trying to use a nasty nick in the chat, they will eventually take the hint that enough is enough.
 
 - **Comprehensive Logging**
-  - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field in the associated commands, which shows up both in your configured log channel and the server audit logs.
-  - Users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering about their awkward silence.
-
-  ![ezgif-5-7297a8fc84](https://github.com/user-attachments/assets/3abf2fa9-e4d0-4fdf-907b-e378c6231bf4)
-
 
   - Everything is transparent to both you and your users in the DMs and the logs. You and your users can both see precisely which blacklists and terms triggered their censor.
-    
+ 
+    ![ezgif-5-7297a8fc84](https://github.com/user-attachments/assets/3abf2fa9-e4d0-4fdf-907b-e378c6231bf4)
+
     ![ezgif-5-3fc2c1418e](https://github.com/user-attachments/assets/00c34036-5fee-4899-9585-d9ef225c6114)
 
+  - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field in the associated commands, which shows up both in your configured log channel and the server audit logs.
+ 
+  - ![ezgif-7-bbae15d9d7](https://github.com/user-attachments/assets/b4fa64f8-198b-4999-afb0-0af9d2c44072)
+    
+  - Users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering about their awkward silence.
+
+   ![ezgif-7-203aa7266e](https://github.com/user-attachments/assets/5d40014c-62a4-49c1-a243-ab718c7c3fbf)
+
   - You can easily see an at-a-glance history of violations all from the log channel, noting when punishments were applied and whenever they were lifted, either automatically by the bot or manually by a staff member via the lift punishment command.
+
+    ![ezgif-7-a6ce9a1d10](https://github.com/user-attachments/assets/8c85401c-ff0c-4c2f-8d3c-e626f9e2f0ec)
 
 ## Requirements
 

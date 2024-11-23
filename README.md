@@ -1,6 +1,6 @@
 # Discord Content Filter Bot
 
-A feature-rich and expertly crafted Discord censoring bot that provides automated content filtering, custom blacklists/whitelists, and an advanced punishment system. This meets and beats a certain very popular paid bot Discord censoring service by also packing in support for long Nitro-length messages, even allowing users to edit and delete their censored messages, and much, much more!
+A feature-rich and expertly crafted Discord censoring bot that provides automated content filtering, custom blacklists/whitelists, and an advanced punishment system. This meets and beats a certain very popular paid bot Discord censoring service by going a step further and packing in support for long Nitro-length messages, letting users edit and delete their censored messages, letting users and staff see exactly what and why content was censored, and much, much more!
 
 ## Important: SQLite WAL2 Requirement
 
@@ -21,17 +21,33 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
     - [FreeWebHeaders.com](https://www.freewebheaders.com/category/profanity/profanity-word-list/)
   - Create, modify, and delete your own blacklists and whitelists with no limits on the number of either, all via the mere stroke of a slash command!
   - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank when indicating the blacklist edit command to call up and drill through the full list of current blacklists. Or specify a new or current list via the parameter. Same thing with whitelists as well.
+
+    ![ezgif-1-69ef3929b5](https://github.com/user-attachments/assets/6fa47fa0-99bf-441b-9fc8-95d6083d5391)
+
   - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand and short supply.
   - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, lookalike Unicode characters, stray spaces, and special characters sandwiched in-between... you name it! We left no stone unturned!
+
+    ![ezgif-1-6ce4ff5daf](https://github.com/user-attachments/assets/61358bdc-991c-4b36-ac6a-92eb002d1bcc)
+
   - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste https://discord.gg/ into a blacklist, and kiss that invite spam goodbye for good!
   - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so your users' formatting is always fully respected in the censoring process.
+
+    ![ezgif-7-5889783452](https://github.com/user-attachments/assets/a518af96-2f71-4221-8fc5-55afa9e0b082)
+
   - Performance was a very important consideration during the design and optimization phase. Instant replacement is a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
 
 - **Reposted Bot Messages**
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
   - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
   - Best of all, we exclusively offer full editing and deleting on all censored posts to the users they belong to. Of course, we made sure our same tried-and-tested filtering system blocks and advises users there as well. Plus even staff are empowered to edit and delete censored messages in users' behalf as well.
+
+    ![ezgif-7-8eeaec2e31](https://github.com/user-attachments/assets/996308b0-2725-4f59-bc95-e1a7f923a54e)
+
   - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users just spent so many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear—of course, fully censored wherever necessary on your own terms.
+
+    ![ezgif-7-d74beafe37](https://github.com/user-attachments/assets/cbd1818d-ea27-4ebf-9304-b3e7d0e23adb)
+
+
 
 - **Advanced Exceptions System**
   - We completely understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least not quite as much. 
@@ -56,7 +72,14 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 - **Comprehensive Logging**
   - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field in the associated commands, which shows up both in your configured log channel and the server audit logs.
   - Users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering about their awkward silence.
+
+  ![ezgif-5-7297a8fc84](https://github.com/user-attachments/assets/3abf2fa9-e4d0-4fdf-907b-e378c6231bf4)
+
+
   - Everything is transparent to both you and your users in the DMs and the logs. You and your users can both see precisely which blacklists and terms triggered their censor.
+    
+    ![ezgif-5-3fc2c1418e](https://github.com/user-attachments/assets/00c34036-5fee-4899-9585-d9ef225c6114)
+
   - You can easily see an at-a-glance history of violations all from the log channel, noting when punishments were applied and whenever they were lifted, either automatically by the bot or manually by a staff member via the lift punishment command.
 
 ## Requirements

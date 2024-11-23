@@ -126,8 +126,11 @@ python content_filter.py
 ### Moderation Tools
 - `/scan_last_messages` - Scan recent messages
 - `/lift_punishment` - Remove punishments
-- Context menu commands for message management
 
+### Message Editing and Deletion
+- Context menu - `Edit Censored Message` - Edit a censored message
+- Context menu - `Deleete Censored Message` - Delete a censored message
+  
 ## Configuration
 
 The bot uses a JSON-based configuration system with the following main components:

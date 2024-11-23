@@ -21,8 +21,8 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
     - [FreeWebHeaders.com](https://www.freewebheaders.com/category/profanity/profanity-word-list/)
   - Create, modify, and delete your own blacklists and whitelists with no limits on the number of either, all via the mere stroke of a slash command!
   - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank when indicating the blacklist edit command to call up and drill through the full list of current blacklists. Or specify a new or current list via the parameter. Same thing with whitelists as well.
-  - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand.
-  - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, special lookalike Unicode characters, stray spaces and special characters sandwiched in-between... you name it! We left no stone unturned!
+  - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand and short supply.
+  - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, lookalike Unicode characters, stray spaces, and special characters sandwiched in-between... you name it! We left no stone unturned!
   - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste in https://discord.gg/ to a blacklist, and kiss that invite spam goodbye for good!
   - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so your users' formatting is always fully respected in the censoring process.
   - Performance was a very important consideration during the design and optimization phase. Instant replacement is a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
@@ -30,8 +30,8 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 - **Reposted Bot Messages**
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
   - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
-  - Best of all, we exclusively offer full editing and deleting on all censored posts to the users they belong to. Of course, we made sure the same tried-and-tested filtering system blocks and advises users there as well. Even staff are empowered to edit and delete these messages in users' behalf as well.
-  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users spent so many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear--of course, censored wherever necessary on your own terms.
+  - Best of all, we exclusively offer full editing and deleting on all censored posts to the users they belong to. Of course, we made sure our same tried-and-tested filtering system blocks and advises users there as well. Plus even staff are empowered to edit and delete censored messages in users' behalf as well.
+  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users just spent so many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear--of course, fully censored wherever necessary on your own terms.
 
 
 - **Advanced Exceptions System**
@@ -39,25 +39,25 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
   - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.
-  - But sometimes the best solutions are the simplest ones. That's where global exceptions come in. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt from all blacklists period... done and done!
-  - Better still, you can combine the two of these and it will just automagically work!
+  - But sometimes the best solutions are the simplest of ones. That's where global exceptions come into play. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt from all blacklists period... done and done!
+  - Better still, you can combine the two of these _exceptional_ options (pun intended) and they will automagically just work together in perfect harmony!
 
 - **Automated Punishments**
   - Of course, you may have need to wrangle in some users who need special handling, and you can say exactly when that happens with our bot-controlled mute punishments.
   - These can be set to whatever mute role you specify.
   - They occur after a given number of violations over however many minutes you say.
   - Then the punishment goes for as many hours as you say. You're the boss. You're are in complete command!
-  - Once all of these are set, you are off. The bot handles it all automagically. Even if it goes offline momentarily, the database stores exactly when a punishment started and when it should end, so the bot picks up where it left off and removes the mute role precisely when it means to.
+  - Once all of these are set, you are off. The bot handles it all automagically. Even if it goes offline momentarily, the database stores exactly when a punishment started and knows exactly when it should end, so the bot picks up where it left off and removes the mute role precisely when it means to.
 
 - **Display Name Filtering**
-  - As another powerful option, you can have display names filtered. Whenever someone joins or updates their profile, the bot will always be one step ahead.
-  - Of course as well, global role exclusions also apply here. If there is some role you want not filtered, just select it and it won't get filtered if you enable this optional filtering.
+  - As another powerful option, you can have display names filtered. Anytime a user joins or updates their profile, the bot will always be one step ahead.
+  - Of course as well, global role exclusions also apply here. If there is some role you want left unfiltered, just select it and it won't get filtered whenever you do enable this optional filtering.
   - Best of all, the violation tracking patches in seamlessly here too. So if someone keeps trying to use a nasty nick in the chat, they will eventually take the hint that enough is enough.
 
 - **Comprehensive Logging**
-  - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field, which shows up both in the your configured log channel and the server audit logs.
-  - Users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering.
-  - Everything is transparent to both you and them in the DMs and the logs. You can both see exactly what blacklists and terms triggered their censor.
+  - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field in the associated commands, which shows up both in your configured log channel and the server audit logs.
+  - Users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering about their awkward silence.
+  - Everything is transparent to both you and your users in the DMs and the logs. You and your users can both see precisely which blacklists and terms triggered their censor.
   - You can easily see an at-a-glance history of violations all from the log channel, noting when punishments were applied and whenever they were lifted, either automatically by the bot or manually by a staff member via the lift punishment command.
 
 ## Requirements

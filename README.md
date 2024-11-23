@@ -22,36 +22,37 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - Create, modify, and delete your own blacklists and whitelists with no limits on the number of either, all via the mere stroke of a slash command!
   - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank to drill through the full list of current blacklists. Or specify a new or current list via the parameter.
   - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when speedy fingers are in high demand.
-  - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, special lookalike Unicode characters, stray spaces and special characters sandwiched in-between.. you name it! We left no stone unturned!
-  - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste in https://discord.gg/ to a blacklist, and kiss that invite goodbye for good!
+  - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, special lookalike Unicode characters, stray spaces and special characters sandwiched in-between... you name it! We left no stone unturned!
+  - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste in https://discord.gg/ to a blacklist, and kiss that invite spam goodbye for good!
   - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so you and your user's formatting is always fully respected in the censoring process.
+  - Performance was a very important consideration during the design and optimization phase. Instant replacement is a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
 
 - **Reposted Bot Messages**
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
-  - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages.
-  - Best of all, we exclusively offer full edit and deletion--also fully filtered--on all censored posts.
-  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. No dumb truncation--that full wall of text your users spent hours to thoughtfully write will always come through loud and clear, censored wherever necessary on your terms.
+  - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
+  - Best of all, we exclusively offer full edit and deletion--also fully filtered, so they aren't going to abuse this superpower--on all censored posts. Staff also are empowered to edit and delete them in their behalf as well.
+  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off that full wall of text your users spent hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear--of course, censored wherever necessary on your own terms.
 
 
 - **Advanced Exceptions System**
-  - We understand that many servers have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least not as much. 
+  - We understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least quite not as much. 
   - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
   - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.
-  - But sometimes simpler solutions are also needed. That's where global exceptions come in. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt everywhere... done and done!
+  - But sometimes simpler solutions are all that is needed. That's where global exceptions come in. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt everywhere... done and done!
+  - Better still, you can combine the two of these and it will just automagically work!
 
 - **Automated Punishments**
-  - Of course, you may have need to wrangle in some users and you can say exactly when that happens with the bot controlled mute punishments.
+  - Of course, you may have need to wrangle in some users who need special handling, and you can say exactly when that happens with our bot-controlled mute punishments.
   - These can be set to whatever mute role you specify.
   - They occur after a given number of violations over however many minutes you say.
   - Then the punishment goes for as many hours as you say. You're the boss. You're are in complete command!
   - Once all of these are set, you are off. The bot handles it all automagically. Even if it goes offline momentarily, the database stores exactly when a punishment started and when it should end, so the bot picks up where it left off and removes the mute role precisely when it means to.
 
 - **Display Name Filtering**
-  - As another powerful option, you can have display names filtered. Whenever someone joins or updates their profile, the bot is one step ahead of them.
-  - Of course as well, global role exclusions also apply here.
-  - Best of all, the violation tracking patches in seamlessly here too.
-  - Don't like it? Turn it off.
+  - As another powerful option, you can have display names filtered. Whenever someone joins or updates their profile, the bot will always be one step ahead.
+  - Of course as well, global role exclusions also apply here. If there is some role you want not filtered, just select it and it won't get filtered if you enable this optional filtering.
+  - Best of all, the violation tracking patches in seamlessly here too. So if someone keeps trying to use a nasty nick in the chat, they will eventually take the hint that enough is enough.
 
 - **Comprehensive Logging**
   - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field, which shows up both in the your configured log channel and the server audit logs.
@@ -177,3 +178,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Support
 
 For support, please open an issue on GitHub.
+
+## Donation
+
+If you found this bot at all helpful, don't pay me a single blessed cent! Seriously. [Instead, donate to the Humanitarian Services of The Church of Jesus Christ of Latter-day Saints!](https://philanthropies.churchofjesuschrist.org/humanitarian-services)

@@ -116,7 +116,7 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 ## Requirements
 
 - Python 3.8+
-- discord.py 2.0+
+- discord.py 2.3+
 - Custom-compiled SQLite with WAL2 support (v3.48.0/1adf875)
 - Additional dependencies listed in requirements.txt
 

@@ -25,11 +25,17 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
     ![ezgif-1-69ef3929b5](https://github.com/user-attachments/assets/6fa47fa0-99bf-441b-9fc8-95d6083d5391)
 
   - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand and short supply.
+
+    ![ezgif-7-317117d2a6](https://github.com/user-attachments/assets/0a489350-7331-46c3-b3bc-77c43ef7e986)
+
   - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, lookalike Unicode characters, stray spaces, and special characters sandwiched in-between... you name it! We left no stone unturned!
 
     ![ezgif-1-6ce4ff5daf](https://github.com/user-attachments/assets/61358bdc-991c-4b36-ac6a-92eb002d1bcc)
 
   - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste https://discord.gg/ into a blacklist, and kiss that invite spam goodbye for good!
+
+    ![ezgif-4-e4b36cfe02](https://github.com/user-attachments/assets/59e54158-7fcf-49d7-9f91-968102b5eaca)
+
   - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so your users' formatting is always fully respected in the censoring process.
 
     ![ezgif-7-5889783452](https://github.com/user-attachments/assets/a518af96-2f71-4221-8fc5-55afa9e0b082)
@@ -39,6 +45,9 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 - **Reposted Bot Messages**
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
   - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
+
+    ![ezgif-2-f1b0fab562](https://github.com/user-attachments/assets/83a03af6-68b3-469d-b139-10ddc73913ae)
+
   - Best of all, we exclusively offer full editing and deleting on all censored posts to the users they belong to. Of course, we made sure our same tried-and-tested filtering system blocks and advises users there as well. Plus even staff are empowered to edit and delete censored messages in users' behalf as well.
 
     ![ezgif-7-8eeaec2e31](https://github.com/user-attachments/assets/996308b0-2725-4f59-bc95-e1a7f923a54e)
@@ -47,15 +56,19 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 
     ![ezgif-7-d74beafe37](https://github.com/user-attachments/assets/cbd1818d-ea27-4ebf-9304-b3e7d0e23adb)
 
-
-
 - **Advanced Exceptions System**
   - We completely understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least not quite as much. 
   - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
   - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.
+
+    ![ezgif-4-f3fcefb079](https://github.com/user-attachments/assets/a5bae89a-079a-40c2-9261-af9c35959ff2)
+
   - But sometimes the best solutions are the simplest of ones. That's where global exceptions come into play. They're server wide. Select any roles, channels, and categories. Once you do, they are exempt from all blacklists period... done and done!
-  - Better still, you can combine the two of these _exceptional_ options (pun intended) and they will automagically just work together in perfect harmony!
+
+    ![ezgif-4-f8616311d3](https://github.com/user-attachments/assets/167d4b1c-e66c-4923-8c44-b7d9212784f1)
+
+  - Better still, you can combine the power of these two _exceptional_ options (pun intended) and they will automagically just work together in perfect harmony!
 
 - **Automated Punishments**
   - Of course, you may have need to wrangle in some users who need special handling, and you can say exactly when that happens with our bot-controlled mute punishments.
@@ -68,9 +81,18 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - Once all of these are set, you are off. The bot handles it all automagically. Even if it goes offline momentarily, the database stores exactly when a punishment started and knows exactly when it should end, so the bot picks up where it left off and removes the mute role precisely when it means to.
 
 - **Display Name Filtering**
-  - As another powerful option, you can have display names filtered. Anytime a user joins or updates their profile, the bot will always be one step ahead.
+  - As another powerful option, you can have configure display names to be filtered. Then anytime a user joins or updates their profile, the bot will always be one step ahead.
+
+    ![ezgif-4-4899e194b6](https://github.com/user-attachments/assets/5aa1b2a8-f4ce-4624-b28e-dfd5fc66510a)
+
+    ![ezgif-4-6af9e97560](https://github.com/user-attachments/assets/9d758164-412f-4083-98dd-31d5eee75a17)
+
   - Of course as well, global role exclusions also apply here. If there is some role you want left unfiltered, just select it and it won't get filtered whenever you do enable this optional filtering.
   - Best of all, the violation tracking patches in seamlessly here too. So if someone keeps trying to use a nasty nick in the chat, they will eventually take the hint that enough is enough.
+
+    ![ezgif-2-7b7b3da24a](https://github.com/user-attachments/assets/bacd4121-0561-4c86-a9ee-f178fcc461d5)
+
+    ![ezgif-2-1b8035b4ea](https://github.com/user-attachments/assets/96df73f9-8bbb-456e-a592-6085ea7aec64)
 
 - **Comprehensive Logging**
 

@@ -20,11 +20,11 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)
     - [FreeWebHeaders.com](https://www.freewebheaders.com/category/profanity/profanity-word-list/)
   - Create, modify, and delete your own blacklists and whitelists with no limits on the number of either, all via the mere stroke of a slash command!
-  - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank to drill through the full list of current blacklists. Or specify a new or current list via the parameter.
-  - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when speedy fingers are in high demand.
+  - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank when indicating the blacklist edit command to call up and drill through the full list of current blacklists. Or specify a new or current list via the parameter. Same thing with whitelists as well.
+  - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand.
   - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, special lookalike Unicode characters, stray spaces and special characters sandwiched in-between... you name it! We left no stone unturned!
   - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste in https://discord.gg/ to a blacklist, and kiss that invite spam goodbye for good!
-  - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so you and your user's formatting is always fully respected in the censoring process.
+  - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so your users' formatting is always fully respected in the censoring process.
   - Performance was a very important consideration during the design and optimization phase. Instant replacement is a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
 
 - **Reposted Bot Messages**

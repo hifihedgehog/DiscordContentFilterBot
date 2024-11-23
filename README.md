@@ -8,7 +8,7 @@ This bot requires SQLite with WAL2 support, which is available in the [WAL2 bran
 - Version: 3.48.0
 - Commit: 1adf875
 
-The standard SQLite distribution will not work as this bot specifically uses WAL2 mode for enhanced performance and reliability.
+The standard SQLite distribution will not work as this bot specifically uses WAL2 mode for enhanced performance and reliability. Of course, you are free of course to edit this source code to use another mode, such as WAL or DELETE, as you please. However, we opted for this mode so the database has high availability even when many users are reading and writing to it from an influx of censored messages. This gives you a neatly packaged, high performance, quite portable database solution.
 
 ## Features
 
@@ -30,12 +30,12 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 - **Reposted Bot Messages**
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
   - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
-  - Best of all, we exclusively offer full edit and deletion--also fully filtered, so they aren't going to abuse this superpower--on all censored posts. Staff also are empowered to edit and delete them in their behalf as well.
-  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off that full wall of text your users spent hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear--of course, censored wherever necessary on your own terms.
+  - Best of all, we exclusively offer full editing and deleting on all censored posts to the users they belong to. Of course, we made sure the same tried-and-tested filtering system blocks and advises users there as well. Even staff are empowered to edit and delete these messages in users' behalf as well.
+  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users spent so many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear--of course, censored wherever necessary on your own terms.
 
 
 - **Advanced Exceptions System**
-  - We understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least quite not as much. 
+  - We completely understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least quite not as much. 
   - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
   - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.

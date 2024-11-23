@@ -18,15 +18,13 @@ import emoji
 import json
 import os
 import regex
-import time
 import unicodedata
 from asyncio import Queue
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 # Load environment variables from .env file
 load_dotenv()
@@ -767,7 +765,7 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
 
 # Message Handling Functions
 async def split_message_preserving_markdown(message: str, max_length: int = MAX_MESSAGE_LENGTH) -> List[str]:
-    """Split long messages while preserving markdown formatting."""
+    """Split long messages while preserving Markdown formatting."""
     chunks = []
     current_chunk = ""
     open_markers = []
@@ -2212,7 +2210,6 @@ async def remove_channel_exception(
 
     if channel:
         channel_id = channel.id
-        channel_name = channel.name
         channel_mention = channel.mention
     elif channel_id:
         channel_name = f"ID {channel_id}"
@@ -2245,12 +2242,10 @@ async def remove_role_exception(
 
     if role:
         role_id = role.id
-        role_name = role.name
         role_mention = role.mention
     elif role_id:
         role_name = f"ID {role_id}"
         role_mention = role_name
-        role_name = int(role_id)
     else:
         await interaction.response.send_message("Invalid input. Please provide a role or its ID.", ephemeral=True)
         return
@@ -2542,9 +2537,9 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
 @is_moderator()
 async def scan_last_messages(interaction: discord.Interaction, limit: int):
     """Scan the last specified number of messages in the channel and delete those containing blacklisted content."""
-    MAX_LIMIT = 10000
-    if limit < 1 or limit > MAX_LIMIT:
-        await interaction.response.send_message(f"Please provide a number between 1 and {MAX_LIMIT}.", ephemeral=True)
+    max_limit = 10000
+    if limit < 1 or limit > max_limit:
+        await interaction.response.send_message(f"Please provide a number between 1 and {max_limit}.", ephemeral=True)
         return
 
     server_config = await load_server_config(interaction.guild.id)

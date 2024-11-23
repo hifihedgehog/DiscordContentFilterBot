@@ -14,7 +14,7 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 
 - **Content Filtering**
   - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and incoming emojis. Add your first blacklist and optionally whitelist from a variety of sources.
-  - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is suited perfectly up to the task!
+  - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is perfectly suited and up to the task!
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)

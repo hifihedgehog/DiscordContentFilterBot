@@ -1,6 +1,6 @@
 # Discord Content Filter Bot
 
-A feature-rich and carefully crafted Discord censoring bot that provides automated content filtering, custom blacklists/whitelists, and an advanced punishment system. This meets and beats algorithmically a certain very popular paid bot service while also packing in support for long Nitro length messages and even allowing users to edit and delete their censored messages.
+A feature-rich and expertly crafted Discord censoring bot that provides automated content filtering, custom blacklists/whitelists, and an advanced punishment system. This meets and beats a certain very popular paid bot Discord censoring service by also packing in support for long Nitro-length messages, even allowing users to edit and delete their censored messages, and much, much more!
 
 ## Important: SQLite WAL2 Requirement
 

@@ -855,8 +855,6 @@ async def repost_as_user(message: discord.Message, censored_message: str) -> dis
 
     if len(censored_message) > 2000:
         embed = discord.Embed(description=censored_message)
-        embed.set_author(name=username, icon_url=avatar_url)
-
         send_kwargs = {'embed': embed, 'username': username, 'avatar_url': avatar_url, 'wait': True}
     else:
         send_kwargs = {'content': censored_message[:2000], 'username': username, 'avatar_url': avatar_url, 'wait': True}

@@ -12,7 +12,7 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 
 ## Features
 
-- **Content Filtering**
+- **Blacklist and Whitelist Customization**
   - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and incoming emojis. Add your first blacklist and optionally whitelist from a variety of sources.
   - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is perfectly suited and up to the task!
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
@@ -40,14 +40,13 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 
     ![ezgif-7-5889783452](https://github.com/user-attachments/assets/a518af96-2f71-4221-8fc5-55afa9e0b082)
 
-  - Performance was a very important consideration during the design and optimization phase. Instant replacement is a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
-
 - **Reposted Bot Messages**
+  - Performance was a very important consideration during the design and optimization phase. Instant replacement of a message was a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
-  - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
 
     ![ezgif-2-f1b0fab562](https://github.com/user-attachments/assets/83a03af6-68b3-469d-b139-10ddc73913ae)
 
+  - That's right! Each user's profile image and display name is shown exactly as expected in the upper left of their censored messages. But we didn't stop there...
   - Best of all, we exclusively offer full editing and deleting on all censored posts to the users they belong to. Of course, we made sure our same tried-and-tested filtering system blocks and advises users there as well. Plus even staff are empowered to edit and delete censored messages in users' behalf as well.
 
     ![ezgif-7-8eeaec2e31](https://github.com/user-attachments/assets/996308b0-2725-4f59-bc95-e1a7f923a54e)

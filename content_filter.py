@@ -848,17 +848,18 @@ async def repost_as_user(message: discord.Message, censored_message: str) -> dis
     
     if isinstance(author, discord.Member):
         username = author.display_name
-        avatar_url = author.display_avatar.url if author.avatar else None
+        avatar_url = author.display_avatar.url if author.display_avatar else None
     else:
         username = author.name
-        avatar_url = author.display_avatar.url if author.avatar else None
+        avatar_url = author.display_avatar.url if author.display_avatar else None
 
-    send_kwargs = {
-        'content': censored_message[:2000],
-        'username': username,
-        'avatar_url': avatar_url,
-        'wait': True,
-    }
+    if len(censored_message) > 2000:
+        embed = discord.Embed(description=censored_message)
+        embed.set_author(name=username, icon_url=avatar_url)
+
+        send_kwargs = {'embed': embed, 'username': username, 'avatar_url': avatar_url, 'wait': True}
+    else:
+        send_kwargs = {'content': censored_message[:2000], 'username': username, 'avatar_url': avatar_url, 'wait': True}
     if isinstance(message.channel, discord.Thread):
         send_kwargs['thread'] = message.channel
 
@@ -868,13 +869,7 @@ async def repost_as_user(message: discord.Message, censored_message: str) -> dis
         print(f"Failed to send censored message via webhook: {e}")
         return
 
-    await save_censored_message(
-        message.guild.id,
-        bot_message.id,
-        message.author.id,
-        webhook.id,
-        webhook.token
-    )
+    await save_censored_message(message.guild.id, bot_message.id, message.author.id, webhook.id, webhook.token)
     return bot_message
 
 # Notification Functions
@@ -1701,14 +1696,19 @@ async def reaction_removal_worker():
 class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):
     def __init__(self, message, guild_id, webhook_id, webhook_token):
         super().__init__()
+        default_content = (
+            message.embeds[0].description
+            if message.embeds and message.embeds[0].description
+            else message.content
+        )
         self.edited_message = discord.ui.TextInput(
             label="Edited Message Content",
             style=discord.TextStyle.paragraph,
             placeholder="Enter your edited message",
             required=True,
             custom_id="edited_message",
-            max_length=2000,
-            default=message.content
+            max_length=4000,
+            default=default_content,
         )
         self.add_item(self.edited_message)
         self.message = message
@@ -1718,15 +1718,28 @@ class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        if self.message.content != self.edited_message.value:
+        original_content = (
+            self.message.embeds[0].description
+            if self.message.embeds and self.message.embeds[0].description
+            else self.message.content
+        )
+        if original_content != self.edited_message.value:
             server_config = await load_server_config(self.guild_id)
             censored_message = await censor_message(self.edited_message.value, self.message.channel, interaction.user, server_config)
             try:
                 webhook = await interaction.client.fetch_webhook(self.webhook_id)
-                if isinstance(self.message.channel, discord.Thread):
-                    await webhook.edit_message(self.message.id, content=censored_message, thread=self.message.channel)
+                if len(censored_message) > 2000:
+                    embed = discord.Embed(description=censored_message)
+                    if isinstance(self.message.channel, discord.Thread):
+                        await webhook.edit_message(self.message.id, content="", embed=embed, thread=self.message.channel)
+                    else:
+                        await webhook.edit_message(self.message.id, content="", embed=embed)
                 else:
-                    await webhook.edit_message(self.message.id, content=censored_message)
+                    if isinstance(self.message.channel, discord.Thread):
+                        await webhook.edit_message(self.message.id, content=censored_message, embed=None, thread=self.message.channel)
+                    else:
+                        await webhook.edit_message(self.message.id, content=censored_message, embed=None)
+
                 if self.edited_message.value != censored_message:
                     spoilered_content = await apply_spoilers(self.edited_message.value, self.message.channel, interaction.user, server_config)
                     triggered_blacklists = []
@@ -1734,21 +1747,20 @@ class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):
                         blocked_terms = await get_blocked_terms(self.edited_message.value, self.message.channel, interaction.user, server_config, blacklist)
                         if blocked_terms:
                             triggered_blacklists.append((blacklist, blocked_terms))
-
-                    if not triggered_blacklists:
-                        blocked_terms = await get_blocked_terms(self.edited_message.value, self.message.channel, interaction.user, server_config)
-                    else:
-                        blocked_terms = [term for _, terms in triggered_blacklists for term in terms]
-                    embed = discord.Embed(title="Message Censored", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
-                    embed.add_field(name="Your Message With Blocked Terms Hidden", value=spoilered_content[:1024] or "No content", inline=False)
+                    blocked_terms = (
+                        [term for _, terms in triggered_blacklists for term in terms]
+                        if triggered_blacklists else
+                        await get_blocked_terms(self.edited_message.value, self.message.channel, interaction.user, server_config)
+                    )
+                    embed = discord.Embed(title="Message Censored: Your Message With Blocked Terms Hidden", description=spoilered_content, color=discord.Color.red())
                     if triggered_blacklists:
-                        blacklist_details = "\n".join([
-                            f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
-                            for name, terms in triggered_blacklists
-                        ])
+                        blacklist_details = "\n".join(
+                            [f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
+                             for name, terms in triggered_blacklists]
+                        )
                         embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
                     else:
-                        embed.add_field(name="Blocked Terms", value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched", inline=False)
+                        embed.add_field(name="Blocked Terms", value=", ".join(f"`{term}`" for term in blocked_terms) if blocked_terms else "No specific terms matched", inline=False)
                     await interaction.followup.send(content="Your edited message was filtered because it contains blacklisted content.", embed=embed, ephemeral=True)
                 else:
                     await interaction.followup.send("Your message has been successfully updated.", ephemeral=True)

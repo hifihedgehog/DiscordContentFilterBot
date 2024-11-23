@@ -13,7 +13,7 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 ## Features
 
 - **Blacklist and Whitelist Customization**
-  - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and incoming emojis. Add your first blacklist and optionally whitelist from a variety of sources.
+  - Add your first blacklist and optionally whitelist from a variety of sources.
   - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is perfectly suited and up to the task!
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
@@ -41,7 +41,7 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
     ![ezgif-7-5889783452](https://github.com/user-attachments/assets/a518af96-2f71-4221-8fc5-55afa9e0b082)
 
 - **Reposted Bot Messages**
-  - Performance was a very important consideration during the design and optimization phase. Instant replacement of a message was a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
+  - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and added reactions. Performance was a very important consideration during the design and optimization phase. Instant replacement of a message was a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
   - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
 
     ![ezgif-2-f1b0fab562](https://github.com/user-attachments/assets/83a03af6-68b3-469d-b139-10ddc73913ae)

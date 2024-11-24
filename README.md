@@ -56,9 +56,9 @@ By default, the standard SQLite distribution will not work as this bot specifica
     ![ezgif-7-d74beafe37](https://github.com/user-attachments/assets/cbd1818d-ea27-4ebf-9304-b3e7d0e23adb)
 
 - **Advanced Exceptions System**
-  - No two servers are alike and many servers have multilingual channels, NSFW channels, or areas or members where you do not filtering happening at all or at least not with every blacklist. 
+  - No two servers are alike and many servers have multilingual channels, NSFW channels, or areas or members where you do not want filtering happening at all or at least not with every blacklist. 
   - To cater to a variety of needs, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
-  - With exceptions, add or remove any given number of roles, channels (channels may include threads and forum posts), and categories to any given number of blacklists and vice versa.
+  - With exceptions, add or remove any given number of roles, channels (channels include threads and forum posts), and categories to any given number of blacklists and vice versa.
   - Once exempted from a blacklist, that role, channel, or category ignores that single blacklist of blocked terms. This is perfect for multilingual communities as well as communities which require a tiered or hybrid approach.
 
     ![ezgif-4-f3fcefb079](https://github.com/user-attachments/assets/a5bae89a-079a-40c2-9261-af9c35959ff2)

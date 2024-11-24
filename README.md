@@ -46,7 +46,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
 
     ![ezgif-2-f1b0fab562](https://github.com/user-attachments/assets/83a03af6-68b3-469d-b139-10ddc73913ae)
 
-  - Each user's profile image and display name is depected in the upper left of their censored messages identical to that user's real post.
+  - Each user's profile image and display name is depicted in the upper left of their censored messages identical to that user's real post.
   - There is exclusive support for editing and deleting on all censored posts. The same rigorously tested filtering system blocks and advises users here as well. Moderators are also empowered to edit and delete censored messages in users' behalf as well.
 
     ![ezgif-7-8eeaec2e31](https://github.com/user-attachments/assets/996308b0-2725-4f59-bc95-e1a7f923a54e)

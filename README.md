@@ -63,7 +63,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
 
     ![ezgif-4-f3fcefb079](https://github.com/user-attachments/assets/a5bae89a-079a-40c2-9261-af9c35959ff2)
 
-  - Global exceptions offer a simpler, broader approach. They are server wide. Select any roles, channels, and categories. Once applied, they are exempt from all blacklists.
+  - Global exceptions offer a simpler, broader approach. They cover all blacklists. Select any roles, channels, and categories. Once applied, they are exempt from all blacklists.
 
     ![ezgif-4-f8616311d3](https://github.com/user-attachments/assets/167d4b1c-e66c-4923-8c44-b7d9212784f1)
 

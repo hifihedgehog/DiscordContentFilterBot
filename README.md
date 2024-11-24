@@ -113,7 +113,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
     ![ezgif-7-a6ce9a1d10](https://github.com/user-attachments/assets/8c85401c-ff0c-4c2f-8d3c-e626f9e2f0ec)
 
 - **DM Message Customization**
-  -Customize the DM you send to users whenever the bot notifies them of a censor event. DMs are also automatically titled with your server's name in the DM header like so: `<SERVER_NAME> Discord Server Content Filter Notification`
+  - Customize the DM you send to users whenever the bot notifies them of a censor event. DMs are also automatically titled with your server's name in the DM header like so: `<SERVER_NAME> Discord Server Content Filter Notification`
 
     ![ezgif-5-7f12ec3d26](https://github.com/user-attachments/assets/bd897b9f-7593-4a73-8cf3-a192b16d6d97)
 

@@ -13,36 +13,36 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 ## Features
 
 - **Blacklist and Whitelist Customization**
-  - Add your first blacklist and optionally whitelist from a variety of sources.
-  - Here are just a few favorite blacklist sources of ours to get you started! Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is perfectly suited and up to the task!
+  - Add your first blacklist and optionally whitelist any number of sources.
+  - Here are just a few favorite blacklist sources of ours to get you started. Note you may need to strip some of them of commas and parentheses as you enter one per line in the bot. [NotePad++](https://notepad-plus-plus.org/) is perfectly suited and up to the task!
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)
     - [FreeWebHeaders.com](https://www.freewebheaders.com/category/profanity/profanity-word-list/)
-  - Create, modify, and delete your own blacklists and whitelists with no limits on the number of either, all via the mere stroke of a slash command!
-  - Terms in any blacklist or whitelist can be made up of a mix of exact terms or regular expressions. Leave the blacklist name blank when indicating the blacklist edit command to call up and drill through the full list of current blacklists. Or specify a new or current list via the parameter. Same thing with whitelists as well.
+  - Create, modify, and delete your own blacklists and whitelists with no limits on the number of either, all via the mere stroke of a slash command.
+  - Terms in any blacklist or whitelist can be made up of exact terms and regular expressions. Simply prefix your regular expression with "re:" and our system detects it and does all the rest. Leave the blacklist name blank when indicating the blacklist edit command to call up and drill through the full list of current blacklists. Or specify a new or current list via the parameter. THe same all applies with whitelists as well.
 
     ![ezgif-1-69ef3929b5](https://github.com/user-attachments/assets/6fa47fa0-99bf-441b-9fc8-95d6083d5391)
 
-  - In a hurry to block a new nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand and short supply.
+  - In a hurry to block someone's nasty bit of choice words? Our quick commands also come in handy for such an occasion when freaky fast fingers are in high demand and short supply. Add a single term with this useful command!
 
     ![ezgif-7-317117d2a6](https://github.com/user-attachments/assets/0a489350-7331-46c3-b3bc-77c43ef7e986)
 
-  - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, lookalike Unicode characters, stray spaces, and special characters sandwiched in-between... you name it! We left no stone unturned!
+  - Our super sophisticated obfuscation detection stops the most terrible of trolls dead in their tracks from wreaking havoc. Reversed spellings, fancy Unicode characters, Zalgo, stray spaces, special characters scattered in-between... you name it. We left no stone unturned. Thanks to clever pattern matching detect word boundaries, we do can match on words randomly separated by special characters or spaces without triggering a false positive from a partial match. For example, save `mean` in a blacklist and `m̂̃e..a n̈` will match but `meaningful` will not.
 
     ![ezgif-1-6ce4ff5daf](https://github.com/user-attachments/assets/61358bdc-991c-4b36-ac6a-92eb002d1bcc)
 
-  - We even support URLs and emojis. Add any emoji and it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste https://discord.gg/ into a blacklist, and kiss that invite spam goodbye for good!
+  - We also support URLs and emojis. Add any emoji and not only will it be blocked in messages, but it will also be instantly blocked in message reactions! Same thing with URLs. Hate invite spam? We do too! Just paste https://discord.gg/ into a blacklist, and kiss that invite spam goodbye for good!
 
     ![ezgif-4-e4b36cfe02](https://github.com/user-attachments/assets/59e54158-7fcf-49d7-9f91-968102b5eaca)
 
-  - We've also paid very special care to be doubly certain our filtering is Markdown-aware, so your users' formatting is always fully respected in the censoring process.
+  - We have also paid close attention to be doubly certain our filtering is Markdown-aware, so your users' formatting is always fully respected in the censoring process.
 
     ![ezgif-7-5889783452](https://github.com/user-attachments/assets/a518af96-2f71-4221-8fc5-55afa9e0b082)
 
 - **Reposted Bot Messages**
-  - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and added reactions. Performance was a very important consideration during the design and optimization phase. Instant replacement of a message was a must and we delivered. Settings and wordlists are not only saved persistently but also pre-processed and cached in-memory for eye-blinkingly fast retrieval and naughty word removal. 
-  - Best of all, every reposted message looks exactly like your user had posted it. This is exactly like a certain paid bot censoring system.
+  - Right off the bat, we filter all of your new and edited messages, new and edited thread titles, and added reactions. Performance was a very important consideration during the design and optimization phase. Instant replacement of a message was a must... and we delivered. Settings and wordlists are not only saved persistently but are also pre-processed and cached in-memory for eye-blinkingly fast resource retrieval and word removal. 
+  - Best of all, every reposted message looks exactly as your user had posted it. This is exactly like a certain paid bot censoring system.
 
     ![ezgif-2-f1b0fab562](https://github.com/user-attachments/assets/83a03af6-68b3-469d-b139-10ddc73913ae)
 
@@ -51,12 +51,12 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 
     ![ezgif-7-8eeaec2e31](https://github.com/user-attachments/assets/996308b0-2725-4f59-bc95-e1a7f923a54e)
 
-  - And we didn't stop there either: we also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users just spent so many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear—of course, fully censored wherever necessary on your own terms.
+  - We didn't stop there either. We also exclusively support Nitro-length posts of up to 4000 characters. That's right. No dumb truncation cutting off half of that full wall of text your users just spent many hours to painstakingly write. The full text no matter how long it is will always flow through loud and clear—of course, fully censored wherever necessary on your own terms.
 
     ![ezgif-7-d74beafe37](https://github.com/user-attachments/assets/cbd1818d-ea27-4ebf-9304-b3e7d0e23adb)
 
 - **Advanced Exceptions System**
-  - We completely understand that no two servers are alike and many have multiple languages, NSFW channels, or just places where you don't want filtering happening at all or at least not quite as much. 
+  - We completely understand that no two servers are alike and many server have multilingual channels, NSFW channels, or just places or people where you don't want filtering happening at all or at least not quite as much. 
   - For that reason, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, you can add or remove any given number of roles, channels, and categories to any given number of blacklists and vice versa.
   - Once you set one of any of those with a blacklist, that role, channel, or category is blocked from just that blacklist and that blacklist only. This is perfect for multilingual servers, as well as servers which may need multiple layers of filtering levels.
@@ -70,24 +70,24 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
   - Better still, you can combine the power of these two _exceptional_ options (pun intended) and they will automagically just work together in perfect harmony!
 
 - **Automated Punishments**
-  - Of course, you may have need to wrangle in some users who need special handling, and you can say exactly when that happens with our bot-controlled mute punishments.
-    - These can be set to whatever mute role you specify.
-    - They occur after a given number of violations over however many minutes you say.
-    - Then the punishment goes for as many hours as you say. You're the boss. You're are in complete command!
+  - Of course, you may have need to wrangle in some users who try to override the system, and you can set limits on them with our bot-controlled mute punishments.
+    - A mute can be set to whatever mute role you specify.
+    - The mutes occur after a given number of violations over however many minutes you select.
+    - Then the punishment goes for as many hours as you determine. You're the boss. You're in complete command!
 
     ![ezgif-7-481cf8f18f](https://github.com/user-attachments/assets/4f80f52e-d344-4f7f-bc02-9079a0451d58)
 
-  - Once all of these are set, you are off. The bot handles it all automagically. Even if it goes offline momentarily, the database stores exactly when a punishment started and knows exactly when it should end, so the bot picks up where it left off and removes the mute role precisely when it means to.
+  - Once all of these are set, you are good to go. The bot handles it all automagically. Even if the bot goes offline momentarily, the database stores exactly when a punishment started and the system knows exactly when it should end, so the bot picks up where it left off and always removes the mute role once a person's mute has expired.
 
 - **Display Name Filtering**
-  - As another powerful option, you can have configure display names to be filtered. Then anytime a user joins or updates their profile, the bot will always be one step ahead.
+  - Another powerful option, you can have configure display names to be filtered. Then anytime a user joins or updates their profile, the bot will always be one step ahead.
 
     ![ezgif-4-4899e194b6](https://github.com/user-attachments/assets/5aa1b2a8-f4ce-4624-b28e-dfd5fc66510a)
 
     ![ezgif-4-6af9e97560](https://github.com/user-attachments/assets/9d758164-412f-4083-98dd-31d5eee75a17)
 
-  - Of course as well, global role exclusions also apply here. If there is some role you want left unfiltered, just select it and it won't get filtered whenever you do enable this optional filtering.
-  - Best of all, the violation tracking patches in seamlessly here too. So if someone keeps trying to use a nasty nick in the chat, they will eventually take the hint that enough is enough.
+  - Sensibly, global role exclusions also apply here. If there is some role you want left unfiltered, just select it and it won't get filtered whenever you do enable this optional filtering.
+  - Best of all, the automated punishment connects seamlessly here too. So whenever someone keeps trying to use a nasty nick in the chat, they will eventually take the hint that enough is enough.
 
     ![ezgif-2-7b7b3da24a](https://github.com/user-attachments/assets/bacd4121-0561-4c86-a9ee-f178fcc461d5)
 
@@ -101,15 +101,15 @@ The standard SQLite distribution will not work as this bot specifically uses WAL
 
     ![ezgif-5-3fc2c1418e](https://github.com/user-attachments/assets/00c34036-5fee-4899-9585-d9ef225c6114)
 
-  - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field in the associated commands, which shows up both in your configured log channel and the server audit logs.
- 
-    ![ezgif-7-bbae15d9d7](https://github.com/user-attachments/assets/b4fa64f8-198b-4999-afb0-0af9d2c44072)
-    
-  - Users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering about their awkward silence.
+  - Thus users are instantly notified via DM when they are muted by the bot. So there is zero waiting or wondering about their awkward silence. Transparency is critical.
 
     ![ezgif-7-203aa7266e](https://github.com/user-attachments/assets/5d40014c-62a4-49c1-a243-ab718c7c3fbf)
 
-  - You can easily see an at-a-glance history of violations all from the log channel, noting when punishments were applied and whenever they were lifted, either automatically by the bot or manually by a staff member via the lift punishment command.
+  - Our audit logs are better still. We note which staff member lifted a mute early and even offer a reason field in the associated commands, which shows up both in your configured log channel and the server audit logs.
+ 
+    ![ezgif-7-bbae15d9d7](https://github.com/user-attachments/assets/b4fa64f8-198b-4999-afb0-0af9d2c44072)
+
+  - You can easily see an at-a-glance history of violations all from the log channel, noting when punishments were applied and whenever they were lifted either automatically by the bot or manually by a staff member via the lift punishment command.
 
     ![ezgif-7-a6ce9a1d10](https://github.com/user-attachments/assets/8c85401c-ff0c-4c2f-8d3c-e626f9e2f0ec)
 
@@ -168,12 +168,18 @@ python content_filter.py
 - `/list_whitelists` - View all whitelists
 
 ### Exception Management
-- `/add_channel_exception` - Add channel exceptions
 - `/add_category_exception` - Add category exceptions
+- `/add_channel_exception` - Add channel exceptions
 - `/add_role_exception` - Add role exceptions
-- `/add_global_channel_exception` - Add global channel exceptions
+- `/remove_category_exception` - Remove category exceptions
+- `/remove_channel_exception` - Remove channel exceptions
+- `/remove_role_exception` - Remove role exceptions
 - `/add_global_category_exception` - Add global category exceptions
+- `/add_global_channel_exception` - Add global channel exceptions
 - `/add_global_role_exception` - Add global role exceptions
+- `/remove_global_category_exception` - Remove global category exceptions
+- `/remove_global_channel_exception` - Remove global channel exceptions
+- `/remove_global_role_exception` - Remove global role exceptions
 - `/list_exceptions` - View all exceptions
 - `/list_global_exceptions` - View all global exceptions
 
@@ -183,7 +189,7 @@ python content_filter.py
 
 ### Message Editing and Deletion
 - Context menu - `Edit Censored Message` - Edit a censored message
-- Context menu - `Deleete Censored Message` - Delete a censored message
+- Context menu - `Delete Censored Message` - Delete a censored message
   
 ## Configuration
 
@@ -210,7 +216,7 @@ The bot uses a JSON-based configuration system with the following main component
 		"seconds": 3600,
 		"microseconds": 0
 	},
-	"punishment_role": 999012168227881051,
+	"punishment_role": 123456789012345678,
 	"punishment_duration": {
 		"days": 0,
 		"seconds": 3600,

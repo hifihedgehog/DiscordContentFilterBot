@@ -1,6 +1,6 @@
 # Discord Content Filter Bot
 
-A feature-rich and expertly crafted Discord censoring bot that provides dual-mode content filtering via term-based pattern matching and regular expressions, customizable blacklists and whitelists, global and blacklist-level exceptions, customizable DM messaging, and a time- and occurrence-based punishment system. This bot featureset surpasses a popular paid Discord censoring service by going the extra mile in doing so. Content Filter Bot supports long Nitro-length messages, allows users to edit and delete their censored messages, provides detailed insight into censors in user DMs and system logging, and much more.
+A feature-rich and expertly crafted Discord censoring bot that provides dual-mode content filtering via term-based pattern matching and regular expressions, customizable blacklists and whitelists, global and blacklist-level exceptions, customizable DM messaging, and a time- and occurrence-based punishment system. This bot feature set surpasses a popular paid Discord censoring service by going the extra mile in doing so. Content Filter Bot supports long Nitro-length messages, allows users to edit and delete their censored messages, provides detailed insight into censors in user DMs and system logging, and much more.
 
 ## Important: SQLite WAL2 Requirement
 
@@ -14,7 +14,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
 
 - **Blacklist and Whitelist Customization**
   - Add your first blacklist and optionally whitelist from a variety of sources.
-  - Here are several blacklist sources to get you started. Note you may need to preproecess them if you want to extract their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task.
+  - Here are several blacklist sources to get you started. Note you may need to preprocess them if you want to extract their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task.
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)
@@ -24,7 +24,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
 
     ![ezgif-1-69ef3929b5](https://github.com/user-attachments/assets/6fa47fa0-99bf-441b-9fc8-95d6083d5391)
 
-  - Sometimes, speed is of the esssence in busy discussions. Quick commands come in handy for such occasions. Add a single term to either a blacklist or whitelist.
+  - Sometimes, speed is of the essence in busy discussions. Quick commands come in handy for such occasions. Add a single term to either a blacklist or whitelist.
 
     ![ezgif-7-317117d2a6](https://github.com/user-attachments/assets/0a489350-7331-46c3-b3bc-77c43ef7e986)
 
@@ -47,11 +47,11 @@ By default, the standard SQLite distribution will not work as this bot specifica
     ![ezgif-2-f1b0fab562](https://github.com/user-attachments/assets/83a03af6-68b3-469d-b139-10ddc73913ae)
 
   - Each user's profile image and display name is depicted in the upper left of their censored messages identical to that user's real post.
-  - There is exclusive support for editing and deleting on all censored posts. The same rigorously tested filtering system blocks and advises users here as well. Moderators are also empowered to edit and delete censored messages in users' behalf as well.
+  - There is exclusive support for editing and deleting on all censored posts. The same rigorously tested filtering system blocks and advises users here as well. Moderators are also empowered to edit and delete censored messages on users' behalf as well.
 
     ![ezgif-7-8eeaec2e31](https://github.com/user-attachments/assets/996308b0-2725-4f59-bc95-e1a7f923a54e)
 
-  - There is exclusive support for Nitro-length posts of up to 4000 characters. This means there is no truncation cutting off half of the lengthy message your users may have spent lenghty periods to enter. The full text no matter how long it is will always come through while respecting your censoring settings.
+  - There is exclusive support for Nitro-length posts of up to 4000 characters. This means there is no truncation cutting off half of the lengthy message your users may have spent lengthy periods to enter. The full text no matter how long it is will always come through while respecting your censoring settings.
 
     ![ezgif-7-d74beafe37](https://github.com/user-attachments/assets/cbd1818d-ea27-4ebf-9304-b3e7d0e23adb)
 
@@ -59,7 +59,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
   - No two servers are alike and many servers have multilingual channels, NSFW channels, or areas or members where you do not filtering happening at all or at least not with every blacklist. 
   - To cater to a variety of needs, we offer two levels of granularity: blacklist-specific _exceptions_ and _**global** exceptions_.
   - With exceptions, add or remove any given number of roles, channels (channels may include threads and forum posts), and categories to any given number of blacklists and vice versa.
-  - Once exempted from a blacklist, that role, channel, or category is ignores that single list of blocked terms. This is perfect for multilingual communities as well as communities which simply require a tiered approach.
+  - Once exempted from a blacklist, that role, channel, or category ignores that single blacklist of blocked terms. This is perfect for multilingual communities as well as communities which require a tiered or hybrid approach.
 
     ![ezgif-4-f3fcefb079](https://github.com/user-attachments/assets/a5bae89a-079a-40c2-9261-af9c35959ff2)
 
@@ -77,7 +77,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
 
     ![ezgif-7-481cf8f18f](https://github.com/user-attachments/assets/4f80f52e-d344-4f7f-bc02-9079a0451d58)
 
-  - Once configured, the bot begins tracking. If the bot ever goes down, the SQLite database cotinues to persistently store when a mute punishment had started. In this way, the bot knows exactly when it should end, so the bot always removes the mute role once a member's mute has expired.
+  - Once configured, the bot begins tracking. If the bot ever goes down, the SQLite database persistently stores when a mute punishment had started. In this way, the bot knows exactly when it should end, so the bot always removes the mute role once a member's mute has expired.
 
 - **Display Name Filtering**
   - Configure display names to be filtered. Anytime a user joins or updates their profile, the bot will always be one step ahead.
@@ -113,7 +113,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
     ![ezgif-7-a6ce9a1d10](https://github.com/user-attachments/assets/8c85401c-ff0c-4c2f-8d3c-e626f9e2f0ec)
 
 - **DM Message Customization**
-  -Customize the DM you sent to users whenever the bot notifies them of a censor event. DMs are also automatically titled with your server's name in the DM header like so: `<SERVER_NAME> Discord Server Content Filter Notification`
+  -Customize the DM you send to users whenever the bot notifies them of a censor event. DMs are also automatically titled with your server's name in the DM header like so: `<SERVER_NAME> Discord Server Content Filter Notification`
 
     ![ezgif-5-7f12ec3d26](https://github.com/user-attachments/assets/bd897b9f-7593-4a73-8cf3-a192b16d6d97)
 

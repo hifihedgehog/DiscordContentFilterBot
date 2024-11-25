@@ -152,6 +152,19 @@ async def initialize_database():
         """)
         
         await db.execute("""
+            CREATE TABLE IF NOT EXISTS term_removal_requests (
+                guild_id INTEGER,
+                term TEXT,
+                reporter_id INTEGER,
+                status TEXT,
+                reason TEXT,
+                timestamp TEXT,
+                message_id INTEGER,
+                PRIMARY KEY (guild_id, term)
+            )
+        """)
+        
+        await db.execute("""
             CREATE INDEX IF NOT EXISTS idx_guild_id 
             ON censored_messages (guild_id)
         """)
@@ -1845,6 +1858,86 @@ class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):
             except discord.HTTPException as e:
                 await interaction.followup.send(f"Failed to edit the message: {e}", ephemeral=True)
 
+class TermRemovalApprovalModal(discord.ui.Modal):
+    def __init__(self, guild_id, term, reporter_id, action, approver):
+        super().__init__(title=f"Reason for {action.capitalize()}")
+        self.guild_id = guild_id
+        self.term = term
+        self.reporter_id = reporter_id
+        self.action = action
+        self.approver = approver
+        self.reason_input = discord.ui.TextInput(
+            label='Reason',
+            style=discord.TextStyle.paragraph,
+            required=True,
+            placeholder='Enter the reason here...'
+        )
+        self.add_item(self.reason_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        reason = self.reason_input.value.strip()
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute("""
+                UPDATE term_removal_requests
+                SET status = ?, reason = ?
+                WHERE guild_id = ? AND term = ?
+            """, (self.action, reason, self.guild_id, self.term))
+            await db.commit()
+
+        guild = interaction.guild
+        reporter = guild.get_member(self.reporter_id)
+        if reporter:
+            try:
+                embed = discord.Embed(
+                    title=f"{guild.name} Discord Server Blacklist Request Follow-Up",
+                    color=discord.Color.green() if self.action == 'approved' else discord.Color.red(),
+                    timestamp=datetime.now(timezone.utc)
+                )
+                embed.add_field(name='Term', value=f"`{self.term}`", inline=False)
+                embed.add_field(name='Status', value=self.action.capitalize(), inline=False)
+                embed.add_field(name='Reason', value=reason, inline=False)
+                await reporter.send(embed=embed)
+            except discord.Forbidden:
+                pass
+
+        server_config = await load_server_config(self.guild_id)
+        log_channel_id = server_config.get("log_channel_id")
+        if log_channel_id:
+            log_channel = guild.get_channel_or_thread(log_channel_id)
+            if log_channel:
+                async with aiosqlite.connect(DATABASE_PATH) as db:
+                    async with db.execute("""
+                        SELECT message_id FROM term_removal_requests
+                        WHERE guild_id = ? AND term = ?
+                    """, (self.guild_id, self.term)) as cursor:
+                        row = await cursor.fetchone()
+                        if row:
+                            message_id = row[0]
+                            try:
+                                message = await log_channel.fetch_message(message_id)
+                                embed = message.embeds[0]
+                                embed.color = discord.Color.green() if self.action == 'approved' else discord.Color.red()
+                                embed.set_field_at(2, name='Status', value=self.action.capitalize(), inline=False)
+                                embed.set_field_at(3, name='Reason', value=reason, inline=False)
+                                embed.add_field(name='Reviewed By', value=self.approver.mention, inline=False)
+                                await message.edit(embed=embed, view=None)
+                            except discord.NotFound:
+                                pass
+
+        if self.action == 'approved':
+            term_removed = False
+            for blacklist_name, terms in server_config["blacklists"].items():
+                if self.term in terms:
+                    terms.remove(self.term)
+                    term_removed = True
+            if term_removed:
+                await save_server_config(self.guild_id, server_config)
+
+        await interaction.response.send_message(
+            f"Term '{self.term}' has been {self.action}.",
+            ephemeral=True
+        )
+
 # Selection View Classes
 class BlacklistSelectView(discord.ui.View):
     """View for selecting a blacklist to edit."""
@@ -1891,6 +1984,48 @@ class WhitelistSelect(discord.ui.Select):
         whitelists = server_config.get("whitelists", {})
         await show_whitelist_edit_modal(interaction, selected_name, whitelists)
 
+class TermRemovalApprovalView(discord.ui.View):
+    '''Buttons for approving and disapproving term requests.'''
+    def __init__(self, guild_id, term, reporter_id):
+        super().__init__(timeout=None)
+        self.guild_id = guild_id
+        self.term = term
+        self.reporter_id = reporter_id
+
+    @discord.ui.button(label='Approve', style=discord.ButtonStyle.success)
+    async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "Only administrators can approve or disapprove term removal requests.",
+                ephemeral=True
+            )
+            return
+        modal = TermRemovalApprovalModal(
+            guild_id=self.guild_id,
+            term=self.term,
+            reporter_id=self.reporter_id,
+            action='approved',
+            approver=interaction.user
+        )
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label='Disapprove', style=discord.ButtonStyle.danger)
+    async def disapprove_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "Only administrators can approve or disapprove term removal requests.",
+                ephemeral=True
+            )
+            return
+        modal = TermRemovalApprovalModal(
+            guild_id=self.guild_id,
+            term=self.term,
+            reporter_id=self.reporter_id,
+            action='disapproved',
+            approver=interaction.user
+        )
+        await interaction.response.send_modal(modal)
+
 # Helper Functions
 async def show_blacklist_edit_modal(interaction: discord.Interaction, name: str, blacklists: dict):
     """Show modal for editing a blacklist."""
@@ -1906,8 +2041,8 @@ async def show_blacklist_edit_modal(interaction: discord.Interaction, name: str,
             placeholder=(
                 "Examples:\n"
                 "- Exact word: badword\n"
-                "- Regex: re:\\w*badw\\w* (blocks any word containing badw)\n"
-                "- URL: url:somewebsite.com (blocks any URL containing somewebsite.com)"
+                "- Regex: re:\\w*badword\\w*\n"
+                "- URL: url:badsite.com"
             )
         )
 
@@ -2657,6 +2792,116 @@ async def scan_last_messages(interaction: discord.Interaction, limit: int):
 
     await progress_message.edit(
         content=f"Scan complete: {deleted_count} message(s) deleted out of {scanned_count} scanned."
+    )
+
+# User Commands
+@bot.tree.command(name="request_term_removal")
+@app_commands.describe(
+    term="The term you are requesting to be removed. Must be exactly as shown in your DM."
+)
+async def request_term_removal(interaction: discord.Interaction, term: str):
+    """Request removal of a term from the blacklists."""
+    guild_id = interaction.guild.id
+    user_id = interaction.user.id
+    server_config = await load_server_config(guild_id)
+    blacklists = server_config.get("blacklists", {})
+    term = term.strip().lower()
+
+    term_in_blacklist = any(term in terms for terms in blacklists.values())
+    if not term_in_blacklist:
+        await interaction.response.send_message(
+            f"The term '{term}' is not currently in any blacklist. Please check the spelling and ensure you supply the term exactly as shown in the DM notification.",
+            ephemeral=True
+        )
+        return
+        
+    log_channel_id = server_config.get("log_channel_id")
+    if not log_channel_id:
+        await interaction.response.send_message(
+            "Log channel is not configured. Please contact an administrator.",
+            ephemeral=True
+        )
+        return
+
+    log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
+    if not log_channel:
+        await interaction.response.send_message(
+            "Log channel not found. Please contact an administrator.",
+            ephemeral=True
+        )
+        return
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute("""
+            SELECT status, reason FROM term_removal_requests
+            WHERE guild_id = ? AND term = ?
+        """, (guild_id, term)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                status, reason = row
+                if status == 'disapproved':
+                    await interaction.response.send_message(
+                        f"Your request to remove `{term}` has been previously disapproved.\n\n**Reason:** {reason}",
+                        ephemeral=True
+                    )
+                    return
+                elif status == 'pending':
+                    await interaction.response.send_message(
+                        f"A request to remove `{term}` is already pending.",
+                        ephemeral=True
+                    )
+                    return
+                elif status == 'approved':
+                    await interaction.response.send_message(
+                        f"The term `{term}` has already been approved for removal.",
+                        ephemeral=True
+                    )
+                    return
+
+    current_time = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT INTO term_removal_requests (guild_id, term, reporter_id, status, reason, timestamp)
+            VALUES (?, ?, ?, 'pending', 'Pending', ?)
+        """, (guild_id, term, user_id, current_time))
+        await db.commit()
+
+    moderator_role_id = server_config.get("moderator_role_id")
+    if moderator_role_id:
+        moderator_role = interaction.guild.get_role(moderator_role_id)
+        role_mention = moderator_role.mention if moderator_role else "@here"
+    else:
+        role_mention = "@here"
+
+    embed = discord.Embed(
+        title="Term Removal Request",
+        color=discord.Color.blue(),
+        timestamp=datetime.now(timezone.utc)
+    )
+    embed.add_field(name="Requested By", value=interaction.user.mention, inline=False)
+    embed.add_field(name="Term", value=f"`{term}`", inline=False)
+    embed.add_field(name="Status", value="Pending", inline=False)
+    embed.add_field(name="Reason", value="Pending", inline=False)
+
+    view = TermRemovalApprovalView(guild_id, term, user_id)
+
+    message = await log_channel.send(
+        content=f"{role_mention}, a new term removal request has been submitted.",
+        embed=embed,
+        view=view
+    )
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            UPDATE term_removal_requests
+            SET message_id = ?
+            WHERE guild_id = ? AND term = ?
+        """, (message.id, guild_id, term))
+        await db.commit()
+
+    await interaction.response.send_message(
+        "Your term removal request has been submitted for review.",
+        ephemeral=True
     )
 
 # Context Menu Commands

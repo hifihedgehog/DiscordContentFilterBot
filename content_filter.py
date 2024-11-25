@@ -39,6 +39,9 @@ CHARACTER_MAP_PATH = "full_character_map.json"
 MARKDOWN_MARKERS = ['```', '***', '**', '*', '__', '___', '~~', '`', '||']
 MARKDOWN_MARKERS.sort(key=lambda x: -len(x))
 
+# URL Regex Pattern
+URL_REGEX = r'\b(?:https?://[^\s]+|(?:discord\.gg/|discord\.com/invite/)[^\s]+)\b'
+
 # Global Caches
 character_map = {}
 pattern_cache = {}
@@ -456,8 +459,9 @@ async def get_blacklist_pattern(term: str) -> regex.Pattern:
         normalized_reversed_term = normalized_term[::-1]      
         word_boundary_start = r'(?<![A-Za-z0-9])'
         word_boundary_end = r'(?![A-Za-z0-9])'
-
-        if term.startswith("re:"):
+        if term.startswith("url:"):
+            pattern = term[4:]
+        elif term.startswith("re:"):
             pattern = word_boundary_start + term[3:] + word_boundary_end
         elif await is_emoji_or_sequence(term):
             pattern = regex.escape(term)
@@ -543,27 +547,20 @@ async def check_exceptions(channel: Optional[Union[discord.Thread, discord.abc.G
     return False
 
 # Content Filtering Functions
-async def censor_message(content: str, channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]], 
+async def censor_content(content: str, channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]], 
                          author: Union[discord.User, discord.Member], server_config: dict) -> str:
-    """
-    Apply censorship to message content based on blacklists and whitelists.
-    Both the original content and its normalized version are checked independently.
-    """
+    """Apply censorship to content based on blacklists and whitelists."""
     if await is_globally_exempt(channel, author, server_config):
         return content
 
     blacklists = server_config.get("blacklists", {})
     whitelists = server_config.get("whitelists", {})
     replacement_string = "\*\*\*"
-    url_pattern = r're:\bhttps?://[^\s]+\b'
-
     normalized_content, index_map = await normalize_text(content)
-
     exempt_ranges_original = []
     exempt_ranges_normalized = []
 
     all_whitelist_terms = [term for terms in whitelists.values() for term in terms]
-    all_whitelist_terms.append(url_pattern)
 
     for term in all_whitelist_terms:
         pattern = await get_whitelist_pattern(term)
@@ -577,16 +574,43 @@ async def censor_message(content: str, channel: Optional[Union[discord.Thread, d
             orig_end = index_map[match.end() - 1] + 1
             exempt_ranges_normalized.append((orig_start, orig_end))
 
-    merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
-
+    url_matches = list(regex.finditer(URL_REGEX, content))
     match_ranges_original = []
     match_ranges_normalized = []
+
+    for url_match in url_matches:
+        url_text = url_match.group()
+        url_start, url_end = url_match.start(), url_match.end()
+
+        is_blacklisted = False
+        for blacklist_name, terms in blacklists.items():
+            if await check_exceptions(channel, author, server_config, blacklist_name):
+                continue
+
+            url_terms = [term for term in terms if term.startswith("url:")]
+
+            for term in url_terms:
+                pattern = await get_blacklist_pattern(term)
+                if pattern.search(url_text):
+                    is_blacklisted = True
+                    break
+            if is_blacklisted:
+                break
+
+        if is_blacklisted:
+            match_ranges_original.append((url_start, url_end))
+        else:
+            exempt_ranges_original.append((url_start, url_end))
+
+    merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
 
     for blacklist_name, terms in blacklists.items():
         if await check_exceptions(channel, author, server_config, blacklist_name):
             continue
 
-        for term in terms:
+        general_terms = [term for term in terms if not term.startswith("url:")]
+
+        for term in general_terms:
             pattern = await get_blacklist_pattern(term)
             for match in pattern.finditer(content):
                 start, end = match.start(), match.end()
@@ -594,8 +618,6 @@ async def censor_message(content: str, channel: Optional[Union[discord.Thread, d
                            for ex_start, ex_end in merged_exempt_ranges):
                     match_ranges_original.append((start, end))
 
-        for term in terms:
-            pattern = await get_blacklist_pattern(term)
             for match in pattern.finditer(normalized_content):
                 start_norm, end_norm = match.start(), match.end()
                 orig_start = index_map[start_norm]
@@ -625,14 +647,11 @@ async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, d
 
     blacklists = server_config.get("blacklists", {})
     whitelists = server_config.get("whitelists", {})
-    url_pattern = r're:\bhttps?://[^\s]+\b'
-
     normalized_content, index_map = await normalize_text(content)
     exempt_ranges_original = []
     exempt_ranges_normalized = []
 
     all_whitelist_terms = [term for terms in whitelists.values() for term in terms]
-    all_whitelist_terms.append(url_pattern)
 
     for term in all_whitelist_terms:
         pattern = await get_whitelist_pattern(term)
@@ -646,16 +665,43 @@ async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, d
             orig_end = index_map[match.end() - 1] + 1
             exempt_ranges_normalized.append((orig_start, orig_end))
 
-    merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
-
+    url_matches = list(regex.finditer(URL_REGEX, content))
     match_ranges_original = []
     match_ranges_normalized = []
+
+    for url_match in url_matches:
+        url_text = url_match.group()
+        url_start, url_end = url_match.start(), url_match.end()
+
+        is_blacklisted = False
+        for blacklist_name, terms in blacklists.items():
+            if await check_exceptions(channel, author, server_config, blacklist_name):
+                continue
+
+            url_terms = [term for term in terms if term.startswith("url:")]
+
+            for term in url_terms:
+                pattern = await get_blacklist_pattern(term)
+                if pattern.search(url_text):
+                    is_blacklisted = True
+                    break
+            if is_blacklisted:
+                break
+
+        if is_blacklisted:
+            match_ranges_original.append((url_start, url_end))
+        else:
+            exempt_ranges_original.append((url_start, url_end))
+
+    merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
 
     for blacklist_name, terms in blacklists.items():
         if await check_exceptions(channel, author, server_config, blacklist_name):
             continue
 
-        for term in terms:
+        general_terms = [term for term in terms if not term.startswith("url:")]
+
+        for term in general_terms:
             pattern = await get_blacklist_pattern(term)
             for match in pattern.finditer(content):
                 start, end = match.start(), match.end()
@@ -663,8 +709,6 @@ async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, d
                            for ex_start, ex_end in merged_exempt_ranges):
                     match_ranges_original.append((start, end))
 
-        for term in terms:
-            pattern = await get_blacklist_pattern(term)
             for match in pattern.finditer(normalized_content):
                 start_norm, end_norm = match.start(), match.end()
                 orig_start = index_map[start_norm]
@@ -688,21 +732,19 @@ async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, d
 async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]], 
                             author: Union[discord.User, discord.Member], server_config: dict, 
                             blacklist: Optional[str] = None) -> set:
-    """Get list of blocked terms that match content."""
+    """Get list of blocked terms applied to target content."""
     matched_terms = set()
 
     if await is_globally_exempt(channel, author, server_config):
         return matched_terms
 
     whitelists = server_config.get("whitelists", {})
-    url_pattern = r're:\bhttps?://[^\s]+\b'
-
+    blacklists = server_config.get("blacklists", {})
     normalized_content, index_map = await normalize_text(content)
     exempt_ranges_original = []
     exempt_ranges_normalized = []
-    
+
     all_whitelist_terms = [term for terms in whitelists.values() for term in terms]
-    all_whitelist_terms.append(url_pattern)
 
     for term in all_whitelist_terms:
         pattern = await get_whitelist_pattern(term)
@@ -716,23 +758,39 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
             orig_end = index_map[match.end() - 1] + 1
             exempt_ranges_normalized.append((orig_start, orig_end))
 
-    merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
-    
+    url_matches = list(regex.finditer(URL_REGEX, content, regex.IGNORECASE))
 
-    blacklists = server_config.get("blacklists", {})
     if blacklist:
         if await check_exceptions(channel, author, server_config, blacklist):
             return matched_terms
         target_blacklist = blacklists.get(blacklist, [])
-        for term in target_blacklist:
+
+        url_terms = [term for term in target_blacklist if term.startswith("url:")]
+        general_terms = [term for term in target_blacklist if not term.startswith("url:")]
+
+        for url_match in url_matches:
+            url_text = url_match.group()
+            url_start, url_end = url_match.start(), url_match.end()
+
+            is_blacklisted = False
+            for term in url_terms:
+                pattern = await get_blacklist_pattern(term)
+                if pattern.search(url_text):
+                    matched_terms.add(term)
+                    is_blacklisted = True
+                    break
+            if not is_blacklisted:
+                exempt_ranges_original.append((url_start, url_end))
+
+        merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
+
+        for term in general_terms:
             pattern = await get_blacklist_pattern(term)
             for match in pattern.finditer(content):
                 start, end = match.start(), match.end()
                 if not any(ex_start <= start < ex_end or ex_start < end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     matched_terms.add(term)
-        for term in target_blacklist:
-            pattern = await get_blacklist_pattern(term)
             for match in pattern.finditer(normalized_content):
                 start_norm, end_norm = match.start(), match.end()
                 orig_start = index_map[start_norm]
@@ -741,25 +799,45 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
                            for ex_start, ex_end in merged_exempt_ranges):
                     matched_terms.add(term)
     else:
+        url_terms = []
+        general_terms = []
+
         for blacklist_name, terms in blacklists.items():
             if await check_exceptions(channel, author, server_config, blacklist_name):
                 continue
-            for term in terms:
+            url_terms.extend([term for term in terms if term.startswith("url:")])
+            general_terms.extend([term for term in terms if not term.startswith("url:")])
+
+        for url_match in url_matches:
+            url_text = url_match.group()
+            url_start, url_end = url_match.start(), url_match.end()
+
+            is_blacklisted = False
+            for term in url_terms:
                 pattern = await get_blacklist_pattern(term)
-                for match in pattern.finditer(content):
-                    start, end = match.start(), match.end()
-                    if not any(ex_start <= start < ex_end or ex_start < end <= ex_end
-                               for ex_start, ex_end in merged_exempt_ranges):
-                        matched_terms.add(term)
-            for term in terms:
-                pattern = await get_blacklist_pattern(term)
-                for match in pattern.finditer(normalized_content):
-                    start_norm, end_norm = match.start(), match.end()
-                    orig_start = index_map[start_norm]
-                    orig_end = index_map[end_norm - 1] + 1
-                    if not any(ex_start <= orig_start < ex_end or ex_start < orig_end <= ex_end
-                               for ex_start, ex_end in merged_exempt_ranges):
-                        matched_terms.add(term)
+                if pattern.search(url_text):
+                    matched_terms.add(term)
+                    is_blacklisted = True
+                    break
+            if not is_blacklisted:
+                exempt_ranges_original.append((url_start, url_end))
+
+        merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
+
+        for term in general_terms:
+            pattern = await get_blacklist_pattern(term)
+            for match in pattern.finditer(content):
+                start, end = match.start(), match.end()
+                if not any(ex_start <= start < ex_end or ex_start < end <= ex_end
+                           for ex_start, ex_end in merged_exempt_ranges):
+                    matched_terms.add(term)
+            for match in pattern.finditer(normalized_content):
+                start_norm, end_norm = match.start(), match.end()
+                orig_start = index_map[start_norm]
+                orig_end = index_map[end_norm - 1] + 1
+                if not any(ex_start <= orig_start < ex_end or ex_start < orig_end <= ex_end
+                           for ex_start, ex_end in merged_exempt_ranges):
+                    matched_terms.add(term)
 
     return matched_terms
 
@@ -1409,7 +1487,7 @@ async def filter_display_name(member):
     """Filter member display names."""
     server_config = await load_server_config(member.guild.id)
     if server_config["display_name_filter_enabled"]:
-        censored_display_name = await censor_message(member.display_name, None, member, server_config)
+        censored_display_name = await censor_content(member.display_name, None, member, server_config)
         if censored_display_name != member.display_name:
             try:
                 await log_censored_display_name(member, censored_display_name, server_config)
@@ -1468,7 +1546,7 @@ async def on_message(message):
         
     server_config = await load_server_config(message.guild.id)
     if isinstance(message.channel, (discord.TextChannel, discord.ForumChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
-        censored_message_content = await censor_message(message.content, message.channel, message.author, server_config)
+        censored_message_content = await censor_content(message.content, message.channel, message.author, server_config)
         if censored_message_content != message.content:
             await message_deletion_queue.put(message) 
             reposted_message = await repost_as_user(message, censored_message_content)
@@ -1493,7 +1571,7 @@ async def on_raw_message_edit(payload):
         return
         
     server_config = await load_server_config(message.guild.id)
-    censored_message_content = await censor_message(message.content, channel, message.author, server_config)
+    censored_message_content = await censor_content(message.content, channel, message.author, server_config)
     if censored_message_content != message.content:
         await message_deletion_queue.put(message) 
         reposted_message = await repost_as_user(message, censored_message_content)
@@ -1505,7 +1583,7 @@ async def on_raw_message_edit(payload):
 async def on_thread_create(thread):
     """Handle thread creation."""
     server_config = await load_server_config(thread.guild.id)
-    censored_title = await censor_message(thread.name, thread, thread.owner, server_config)
+    censored_title = await censor_content(thread.name, thread, thread.owner, server_config)
     
     if censored_title != thread.name:
         try:
@@ -1530,7 +1608,7 @@ async def on_raw_thread_update(payload):
         return
 
     server_config = await load_server_config(thread.guild.id)
-    censored_title = await censor_message(thread.name, thread, thread.owner, server_config)
+    censored_title = await censor_content(thread.name, thread, thread.owner, server_config)
     if censored_title != thread.name:
         try:
             if thread.owner:
@@ -1563,7 +1641,7 @@ async def on_raw_reaction_add(payload):
     reaction = discord.Reaction(message=message,data={'count': None, 'me': None, 'emoji': emoji}, emoji=emoji)
     
     server_config = await load_server_config(message.guild.id)
-    censored_emoji = await censor_message(str(reaction.emoji), message.channel, user, server_config)
+    censored_emoji = await censor_content(str(reaction.emoji), message.channel, user, server_config)
     if censored_emoji != str(reaction.emoji):
         await log_removed_reaction(user, str(reaction.emoji), reaction.message, server_config)
         await notify_user_reaction_removal(user, str(reaction.emoji), reaction.message, server_config)
@@ -1721,7 +1799,7 @@ class EditMessageModal(discord.ui.Modal, title="Edit Your Message"):
         )
         if original_content != self.edited_message.value:
             server_config = await load_server_config(self.guild_id)
-            censored_message = await censor_message(self.edited_message.value, self.message.channel, interaction.user, server_config)
+            censored_message = await censor_content(self.edited_message.value, self.message.channel, interaction.user, server_config)
             try:
                 webhook = await interaction.client.fetch_webhook(self.webhook_id)
                 if len(censored_message) > 2000:
@@ -1828,7 +1906,8 @@ async def show_blacklist_edit_modal(interaction: discord.Interaction, name: str,
             placeholder=(
                 "Examples:\n"
                 "- Exact word: badword\n"
-                "- Regex: re:\\b\\w*badw\\w*\\b (blocks any word containing badw)"
+                "- Regex: re:\\w*badw\\w* (blocks any word containing badw)\n"
+                "- URL: url:somewebsite.com (blocks any URL containing somewebsite.com)"
             )
         )
 
@@ -1872,7 +1951,7 @@ async def show_whitelist_edit_modal(interaction: discord.Interaction, name: str,
             placeholder=(
                 "Examples:\n"
                 "- Exact word: goodword\n"
-                "- Regex: re:\\b\\w*goodw\\w*\\b (allows any word containing goodw)"
+                "- Regex: re:\\w*goodw\\w* (allows any word containing goodw)"
             )
         )
 
@@ -2561,7 +2640,7 @@ async def scan_last_messages(interaction: discord.Interaction, limit: int):
             if message.author == bot.user or message.author.bot:
                 continue
 
-            censored_message = await censor_message(message.content, message.channel, message.author, server_config)
+            censored_message = await censor_content(message.content, message.channel, message.author, server_config)
             if message.content != censored_message:
                 await message.delete()
                 await log_scan_deletion(message, censored_message, server_config)

@@ -2370,7 +2370,7 @@ async def view_configuration(interaction: discord.Interaction):
         value=(
             "String used for replacing censored content.\n"
             "**Currently:** `{0}`\n"
-            "Use `/set_replacement_string` to enable or disable."
+            "Use `/set_replacement_string` to configure."
         ).format(replacement_string if replacement_string else 'Not Set'),
         inline=False
     )

@@ -90,6 +90,23 @@ def is_moderator():
 
     return app_commands.check(predicate)
 
+def is_term_approver():
+    async def predicate(interaction: discord.Interaction):
+        if interaction.user.guild_permissions.administrator:
+            return True
+        return await has_term_approver_role(interaction.user)
+    return app_commands.check(predicate)
+
+async def has_term_approver_role(member: discord.Member) -> bool:
+    """Check if the member has the term approver role."""
+    server_config = await load_server_config(member.guild.id)
+    term_approver_role_id = server_config.get("term_approver_role_id")
+    if term_approver_role_id:
+        term_approver_role = member.guild.get_role(term_approver_role_id)
+        if term_approver_role in member.roles:
+            return True
+    return False
+
 # Error Handler for Permission Checks
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -160,6 +177,7 @@ async def initialize_database():
                 reason TEXT,
                 timestamp TEXT,
                 message_id INTEGER,
+                blacklists_modified TEXT,
                 PRIMARY KEY (guild_id, term)
             )
         """)
@@ -255,6 +273,12 @@ async def load_server_config(guild_id: int) -> dict:
     """Load server configuration from cache or file."""
     if guild_id in server_config_cache:
         return server_config_cache[guild_id]
+        
+    default_dm_message = (
+        "Your content was modified because of inappropriate content or a false positive. Note that you can always edit and delete your censored messages from the context menu under *Apps→Edit Censored Message* and *Apps→Delete Censored Message*. If you believe this censor to be in error, please report the erroneous term(s) with the slash command `/request_term_removal`. We greatly appreciate users who report false positives that should be whitelisted.\n\n"
+        "Note that if you repeatedly try to circumvent a censor including false positives, after {max_violations} attempt(s) in {time_window}, you will be automatically timed out for the period of {punishment_duration}. Outside of the system's automated punishment, moderators will never manually punish a user for a false positive. Thank you for your understanding."
+    )
+    default_replacement_string = "***"
 
     config_path = os.path.join(CONFIG_DIR, f"{guild_id}.json")
     if os.path.exists(config_path):
@@ -272,6 +296,10 @@ async def load_server_config(guild_id: int) -> dict:
                     config["exceptions"][key] = {int(k): v for k, v in config["exceptions"].get(key, {}).items()}
 
                 config.setdefault("moderator_role_id", None)
+                config.setdefault("term_approver_role_id", None)
+                config.setdefault("dm_notifications", default_dm_message)
+                config.setdefault("replacement_string", default_replacement_string)
+                
                 server_config_cache[guild_id] = config
                 return config
         except (json.JSONDecodeError, KeyError, TypeError) as e:
@@ -290,8 +318,10 @@ async def load_server_config(guild_id: int) -> dict:
         },
         "display_name_filter_enabled": False,
         "log_channel_id": None,
-        "dm_notifications": None,
+        "dm_notifications": default_dm_message,
         "moderator_role_id": None,
+        "term_approver_role_id": None,
+        "replacement_string": default_replacement_string,
     }
     server_config_cache[guild_id] = default_config
     return default_config
@@ -340,6 +370,23 @@ async def dict_to_timedelta(td_dict):
         microseconds=td_dict["microseconds"]
     )
     
+async def format_timedelta(td: timedelta) -> str:
+    """Format a timedelta object into a human-readable string."""
+    total_seconds = int(td.total_seconds())
+    periods = [
+        ('day', 86400),  # 60 * 60 * 24
+        ('hour', 3600),  # 60 * 60
+        ('minute', 60),
+        ('second', 1),
+    ]
+    strings = []
+    for period_name, period_seconds in periods:
+        if total_seconds >= period_seconds:
+            period_value, total_seconds = divmod(total_seconds, period_seconds)
+            if period_value > 0:
+                strings.append(f"{period_value} {period_name}{'s' if period_value > 1 else ''}")
+    return ', '.join(strings)
+    
 async def load_character_map():
     """Load the character map from the JSON file."""
     try:
@@ -366,6 +413,11 @@ async def setup_webhook(channel):
 
     webhook_cache[parent_channel.id] = bot_webhooks[0]
     return bot_webhooks[0]
+    
+def escape_markdown(text: str) -> str:
+    markdown_chars = ['\\', '`', '*', '_', '{', '}', '[', ']', '(', ')', '#', '+', '-', '.', '!', '|', '>', '~']
+    escape_dict = {ord(char): f"\\{char}" for char in markdown_chars}
+    return text.translate(escape_dict)
 
 # Content Pattern Processing
 async def is_emoji_or_sequence(s):
@@ -568,7 +620,8 @@ async def censor_content(content: str, channel: Optional[Union[discord.Thread, d
 
     blacklists = server_config.get("blacklists", {})
     whitelists = server_config.get("whitelists", {})
-    replacement_string = "\*\*\*"
+    replacement_string = server_config.get("replacement_string", "***")
+    replacement_string = escape_markdown(replacement_string)
     normalized_content, index_map = await normalize_text(content)
     exempt_ranges_original = []
     exempt_ranges_normalized = []
@@ -924,11 +977,11 @@ async def split_message_preserving_markdown(message: str, max_length: int = MAX_
 
     return chunks
 
-async def send_long_message(interaction: discord.Interaction, message: str):
+async def send_long_message(interaction: discord.Interaction, message: str, emphemeral: bool = True):
     """Send long messages split into chunks."""
     message_chunks = await split_message_preserving_markdown(message)
     for chunk in message_chunks:
-        await interaction.followup.send(chunk, ephemeral=False)
+        await interaction.followup.send(chunk, ephemeral=emphemeral)
 
 async def repost_as_user(message: discord.Message, censored_message: str) -> discord.Message:
     """Repost censored message via webhook."""
@@ -977,6 +1030,17 @@ async def notify_user_message(message, censored_message, reposted_message, serve
     
     embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.red())
     value = server_config.get("dm_notifications", "Your message was filtered because it contains blacklisted content.")
+    punishments = server_config.get("punishments")
+    max_violations = punishments.get("max_violations")
+    time_window = punishments.get("time_window")
+    punishment_duration = punishments.get("punishment_duration")
+    time_window_str = await format_timedelta(time_window)
+    punishment_duration_str = await format_timedelta(punishment_duration)
+    value = value.format(
+        max_violations=max_violations,
+        time_window=time_window_str,
+        punishment_duration=punishment_duration_str
+    )
     embed_1.add_field(name="", value=value, inline=False)
     embeds.append(embed_1)
     
@@ -997,10 +1061,10 @@ async def notify_user_message(message, censored_message, reposted_message, serve
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed_2.add_field(name="Blocked Terms", 
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
 
     embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
@@ -1033,6 +1097,17 @@ async def notify_user_thread_title(thread, censored_title, server_config):
     
     embed_1 = discord.Embed(title=f"{thread.guild.name} Discord Server Content Filter Notification", color=discord.Color.orange())
     value = server_config.get("dm_notifications", "Your thread was filtered because it contains blacklisted content.")
+    punishments = server_config.get("punishments")
+    max_violations = punishments.get("max_violations")
+    time_window = punishments.get("time_window")
+    punishment_duration = punishments.get("punishment_duration")
+    time_window_str = await format_timedelta(time_window)
+    punishment_duration_str = await format_timedelta(punishment_duration)
+    value = value.format(
+        max_violations=max_violations,
+        time_window=time_window_str,
+        punishment_duration=punishment_duration_str
+    )
     embed_1.add_field(name="", value=value, inline=False)
     embeds.append(embed_1)
     
@@ -1045,10 +1120,10 @@ async def notify_user_thread_title(thread, censored_title, server_config):
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed_2.add_field(name="Blocked Terms",
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
 
     embed_2.add_field(name="Channel", value=thread.parent.mention, inline=False)
@@ -1077,6 +1152,17 @@ async def notify_user_reaction_removal(user, emoji, message, server_config):
     
     embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.yellow())
     value = server_config.get("dm_notifications", "Your reaction was filtered because it contains blacklisted content.")
+    punishments = server_config.get("punishments")
+    max_violations = punishments.get("max_violations")
+    time_window = punishments.get("time_window")
+    punishment_duration = punishments.get("punishment_duration")
+    time_window_str = await format_timedelta(time_window)
+    punishment_duration_str = await format_timedelta(punishment_duration)
+    value = value.format(
+        max_violations=max_violations,
+        time_window=time_window_str,
+        punishment_duration=punishment_duration_str
+    )
     embed_1.add_field(name="", value=value, inline=False)
     embeds.append(embed_1)
     
@@ -1085,10 +1171,10 @@ async def notify_user_reaction_removal(user, emoji, message, server_config):
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed_2.add_field(name="Blocked Terms", 
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
     embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
     embed_2.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
@@ -1116,6 +1202,17 @@ async def notify_user_display_name(member, censored_display_name, server_config)
     
     embed_1 = discord.Embed(title=f"{member.guild.name} Discord Server Content Filter Notification", color=discord.Color.purple())
     value = server_config.get("dm_notifications", "Your display name was filtered because it contains blacklisted content.")
+    punishments = server_config.get("punishments")
+    max_violations = punishments.get("max_violations")
+    time_window = punishments.get("time_window")
+    punishment_duration = punishments.get("punishment_duration")
+    time_window_str = await format_timedelta(time_window)
+    punishment_duration_str = await format_timedelta(punishment_duration)
+    value = value.format(
+        max_violations=max_violations,
+        time_window=time_window_str,
+        punishment_duration=punishment_duration_str
+    )
     embed_1.add_field(name="", value=value, inline=False)
     embeds.append(embed_1)
     
@@ -1128,10 +1225,10 @@ async def notify_user_display_name(member, censored_display_name, server_config)
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed_2.add_field(name="Blocked Terms",
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
     embeds.append(embed_2)
     
@@ -1157,6 +1254,17 @@ async def notify_user_scan_deletion(message: discord.Message, censored_message: 
     
     embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.red())
     value = server_config.get("dm_notifications", "Your message was removed because it contains blacklisted content.")
+    punishments = server_config.get("punishments")
+    max_violations = punishments.get("max_violations")
+    time_window = punishments.get("time_window")
+    punishment_duration = punishments.get("punishment_duration")
+    time_window_str = await format_timedelta(time_window)
+    punishment_duration_str = await format_timedelta(punishment_duration)
+    value = value.format(
+        max_violations=max_violations,
+        time_window=time_window_str,
+        punishment_duration=punishment_duration_str
+    )
     embed_1.add_field(name="", value=value, inline=False)
     embeds.append(embed_1)
     
@@ -1177,10 +1285,10 @@ async def notify_user_scan_deletion(message: discord.Message, censored_message: 
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_2.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed_2.add_field(name="Blocked Terms", 
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
                        
     embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
@@ -1237,11 +1345,11 @@ async def log_censored_message(message, censored_message, reposted_message, serv
             f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
             for name, terms in triggered_blacklists
         ])
-        embed_1.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_1.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed_1.add_field(
             name="Blocked Terms",
-            value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+            value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
             inline=False
         )
         
@@ -1285,11 +1393,11 @@ async def log_censored_thread_title(thread, censored_title, server_config):
             f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
             for name, terms in triggered_blacklists
         ])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed.add_field(
             name="Blocked Terms",
-            value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+            value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
             inline=False
         )
 
@@ -1325,10 +1433,10 @@ async def log_removed_reaction(user, emoji, message, server_config):
     if triggered_blacklists:
         blacklist_details = "\n".join([f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
                                      for name, terms in triggered_blacklists])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed.add_field(name="Blocked Terms",
-                       value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+                       value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
                        
     embed.add_field(name="Channel", value=message.channel.mention, inline=False)
@@ -1366,11 +1474,11 @@ async def log_censored_display_name(member, censored_display_name, server_config
             f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
             for name, terms in triggered_blacklists
         ])
-        embed.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed.add_field(
             name="Blocked Terms",
-            value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+            value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
             inline=False
         )
 
@@ -1417,11 +1525,11 @@ async def log_scan_deletion(message: discord.Message, censored_message: str, ser
             f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
             for name, terms in triggered_blacklists
         ])
-        embed_1.add_field(name="Triggered Blacklists", value=blacklist_details, inline=False)
+        embed_1.add_field(name="Triggered Blacklists", value=blacklist_details[:1024], inline=False)
     else:
         embed_1.add_field(
             name="Blocked Terms",
-            value=", ".join(f'`{term}`' for term in blocked_terms) if blocked_terms else "No specific terms matched",
+            value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
             inline=False
         )
         
@@ -1506,7 +1614,7 @@ async def filter_display_name(member):
                 await log_censored_display_name(member, censored_display_name, server_config)
                 await notify_user_display_name(member, censored_display_name, server_config)
                 await check_and_apply_punishment(member, member.guild.id, server_config)
-                await member.edit(nick=censored_display_name.replace("\*\*\*","***"))
+                await member.edit(nick=censored_display_name.replace("\\",""))
             except discord.Forbidden:
                 pass
 
@@ -1540,8 +1648,6 @@ async def on_ready():
             pattern = await get_blacklist_pattern(term)      
         whitelists = server_config.get("whitelists", {})
         all_whitelist_terms = [term for terms in whitelists.values() for term in terms]
-        url_pattern = r're:\bhttps?://[^\s]+\b'
-        all_whitelist_terms.append(url_pattern)
         for term in all_whitelist_terms:
             await get_whitelist_pattern(term)
         print(f"Loaded server regex cache for '{guild.name}' ({guild.id}).")
@@ -1603,7 +1709,7 @@ async def on_thread_create(thread):
             if thread.owner:
                 await notify_user_thread_title(thread, censored_title, server_config)
             await log_censored_thread_title(thread, censored_title, server_config)
-            await thread.edit(name=censored_title.replace("\*\*\*","***"))
+            await thread.edit(name=censored_title.replace("\\",""))
             await check_and_apply_punishment(thread.owner, thread.guild.id, server_config)
         except (discord.Forbidden, discord.HTTPException) as e:
             print(f"Error editing thread title: {e}")
@@ -1627,7 +1733,7 @@ async def on_raw_thread_update(payload):
             if thread.owner:
                 await notify_user_thread_title(thread, censored_title, server_config)
             await log_censored_thread_title(thread, censored_title, server_config)
-            await thread.edit(name=censored_title.replace("\*\*\*", "***"))
+            await thread.edit(name=censored_title.replace("\\", ""))
             await check_and_apply_punishment(thread.owner, thread.guild.id, server_config)
         except (discord.Forbidden, discord.HTTPException) as e:
             print(f"Error editing thread title: {e}")
@@ -1926,12 +2032,21 @@ class TermRemovalApprovalModal(discord.ui.Modal):
 
         if self.action == 'approved':
             term_removed = False
+            blacklists_modified = []
             for blacklist_name, terms in server_config["blacklists"].items():
                 if self.term in terms:
                     terms.remove(self.term)
+                    blacklists_modified.append(blacklist_name)
                     term_removed = True
             if term_removed:
                 await save_server_config(self.guild_id, server_config)
+                async with aiosqlite.connect(DATABASE_PATH) as db:
+                    await db.execute("""
+                        UPDATE term_removal_requests
+                        SET blacklists_modified = ?
+                        WHERE guild_id = ? AND term = ?
+                    """, (json.dumps(blacklists_modified), self.guild_id, self.term))
+                    await db.commit()
 
         await interaction.response.send_message(
             f"Term '{self.term}' has been {self.action}.",
@@ -1939,6 +2054,7 @@ class TermRemovalApprovalModal(discord.ui.Modal):
         )
 
 # Selection View Classes
+
 class BlacklistSelectView(discord.ui.View):
     """View for selecting a blacklist to edit."""
     def __init__(self, blacklists):
@@ -1994,12 +2110,13 @@ class TermRemovalApprovalView(discord.ui.View):
 
     @discord.ui.button(label='Approve', style=discord.ButtonStyle.success)
     async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.user.guild_permissions.administrator:
+        if not (interaction.user.guild_permissions.administrator or await has_term_approver_role(interaction.user)):
             await interaction.response.send_message(
-                "Only administrators can approve or disapprove term removal requests.",
+                "Only administrators or users with the term approver role can approve or disapprove term removal requests.",
                 ephemeral=True
             )
             return
+        # Show modal to enter reason for approval
         modal = TermRemovalApprovalModal(
             guild_id=self.guild_id,
             term=self.term,
@@ -2011,12 +2128,13 @@ class TermRemovalApprovalView(discord.ui.View):
 
     @discord.ui.button(label='Disapprove', style=discord.ButtonStyle.danger)
     async def disapprove_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not interaction.user.guild_permissions.administrator:
+        if not (interaction.user.guild_permissions.administrator or await has_term_approver_role(interaction.user)):
             await interaction.response.send_message(
-                "Only administrators can approve or disapprove term removal requests.",
+                "Only administrators or users with the term approver role can approve or disapprove term removal requests.",
                 ephemeral=True
             )
             return
+        # Show modal to enter reason for disapproval
         modal = TermRemovalApprovalModal(
             guild_id=self.guild_id,
             term=self.term,
@@ -2025,6 +2143,114 @@ class TermRemovalApprovalView(discord.ui.View):
             approver=interaction.user
         )
         await interaction.response.send_modal(modal)
+
+class TermRequestHistoryView(discord.ui.View):
+    def __init__(self, user, requests):
+        super().__init__(timeout=None)
+        self.user = user
+        self.requests = requests
+        self.index = 0
+        self.update_buttons()
+    
+    def update_buttons(self):
+        self.first_page.disabled = self.index == 0
+        self.previous_page.disabled = self.index == 0
+        self.next_page.disabled = self.index >= len(self.requests) - 1
+        self.last_page.disabled = self.index >= len(self.requests) - 1
+        current_status = self.requests[self.index][2]
+        self.revert_approval.disabled = current_status != 'approved'
+        self.delete_request.disabled = False
+
+    def current_embed(self):
+        term, reporter_id, status, reason, timestamp, blacklists_modified = self.requests[self.index]
+        embed = discord.Embed(
+            title="Term Removal Request",
+            color=discord.Color.green() if status == 'approved' else discord.Color.red() if status == 'disapproved' else discord.Color.blue(),
+            timestamp=datetime.fromisoformat(timestamp)
+        )
+        embed.add_field(name="Term", value=f"`{term}`", inline=False)
+        reporter = self.user.guild.get_member(reporter_id)
+        embed.add_field(name="Requested By", value=reporter.mention if reporter else f"User ID {reporter_id}", inline=False)
+        embed.add_field(name="Status", value=status.capitalize(), inline=False)
+        embed.add_field(name="Reason", value=reason, inline=False)
+        if blacklists_modified:
+            blacklists = json.loads(blacklists_modified)
+            embed.add_field(name="Blacklists Modified", value=", ".join(blacklists), inline=False)
+        else:
+            embed.add_field(name="Blacklists Modified", value="N/A", inline=False)
+        embed.set_footer(text=f"Request {self.index + 1} of {len(self.requests)}")
+        return embed
+
+    @discord.ui.button(label='<<', style=discord.ButtonStyle.secondary)
+    async def first_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = 0
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.current_embed(), view=self)
+    
+    @discord.ui.button(label='<', style=discord.ButtonStyle.secondary)
+    async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = max(self.index - 1, 0)
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.current_embed(), view=self)
+    
+    @discord.ui.button(label='>', style=discord.ButtonStyle.secondary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = min(self.index + 1, len(self.requests) - 1)
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.current_embed(), view=self)
+    
+    @discord.ui.button(label='>>', style=discord.ButtonStyle.secondary)
+    async def last_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.index = len(self.requests) - 1
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.current_embed(), view=self)
+
+    @discord.ui.button(label='Revert Approval', style=discord.ButtonStyle.danger)
+    async def revert_approval(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Revert the approval
+        term, reporter_id, status, reason, timestamp, blacklists_modified = self.requests[self.index]
+        if status != 'approved':
+            await interaction.response.send_message("Only approved terms can be reverted.", ephemeral=True)
+            return
+        blacklists = json.loads(blacklists_modified)
+        # Re-add the term to the blacklists
+        guild_id = interaction.guild.id
+        server_config = await load_server_config(guild_id)
+        for blacklist_name in blacklists:
+            if blacklist_name in server_config["blacklists"]:
+                server_config["blacklists"][blacklist_name].append(term)
+        await save_server_config(guild_id, server_config)
+        # Update the request status in the database
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute("""
+                UPDATE term_removal_requests
+                SET status = 'reverted', reason = ?
+                WHERE guild_id = ? AND term = ?
+            """, (f'Approval reverted by {interaction.user}', guild_id, term))
+            await db.commit()
+        # Update the request in memory
+        self.requests[self.index] = (term, reporter_id, 'reverted', f'Approval reverted by {interaction.user}', timestamp, blacklists_modified)
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.current_embed(), view=self)
+
+    @discord.ui.button(label='Delete Request', style=discord.ButtonStyle.danger)
+    async def delete_request(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Delete the request
+        term, reporter_id, status, reason, timestamp, blacklists_modified = self.requests.pop(self.index)
+        guild_id = interaction.guild.id
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute("""
+                DELETE FROM term_removal_requests
+                WHERE guild_id = ? AND term = ?
+            """, (guild_id, term))
+            await db.commit()
+        if self.index >= len(self.requests):
+            self.index = len(self.requests) - 1
+        if len(self.requests) == 0:
+            await interaction.response.edit_message(content="No more term removal requests.", embed=None, view=None)
+            return
+        self.update_buttons()
+        await interaction.response.edit_message(embed=self.current_embed(), view=self)
 
 # Helper Functions
 async def show_blacklist_edit_modal(interaction: discord.Interaction, name: str, blacklists: dict):
@@ -2047,7 +2273,7 @@ async def show_blacklist_edit_modal(interaction: discord.Interaction, name: str,
         )
 
         async def on_submit(modal_self, interaction: discord.Interaction):
-            await interaction.response.defer(ephemeral=False)
+            await interaction.response.defer(ephemeral=True)
             guild_id = interaction.guild.id
             server_config = await load_server_config(guild_id)
             terms = modal_self.blacklist_terms.value.splitlines()
@@ -2091,7 +2317,7 @@ async def show_whitelist_edit_modal(interaction: discord.Interaction, name: str,
         )
 
         async def on_submit(modal_self, interaction: discord.Interaction):
-            await interaction.response.defer(ephemeral=False)
+            await interaction.response.defer(ephemeral=True)
             guild_id = interaction.guild.id
             server_config = await load_server_config(guild_id)
             terms = modal_self.whitelist_terms.value.splitlines()
@@ -2117,6 +2343,267 @@ async def show_whitelist_edit_modal(interaction: discord.Interaction, name: str,
     await interaction.response.send_modal(WhitelistModal())
 
 # Commands - General Settings
+@bot.tree.command(name="view_configuration")
+@is_admin()
+async def view_configuration(interaction: discord.Interaction):
+    """View the bot's filtering settings and related configuration."""
+    guild_id = interaction.guild.id
+    server_config = await load_server_config(guild_id)
+    embed_1 = discord.Embed(title=f"{interaction.guild.name} Discord Server Content Filter Configuration", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
+
+    log_channel_id = server_config.get("log_channel_id")
+    log_channel = interaction.guild.get_channel_or_thread(log_channel_id) if log_channel_id else None
+    embed_1.add_field(
+        name="Log Channel",
+        value=(
+            "Channel where logs are sent.\n"
+            "**Currently:** {0}\n"
+            "Use `/set_log_channel` to configure."
+        ).format(log_channel.mention if log_channel else 'Not Set'),
+        inline=False
+    )
+    
+    replacement_string = server_config.get("replacement_string", False)
+    replacement_string = escape_markdown(replacement_string)
+    embed_1.add_field(
+        name="Replacement String",
+        value=(
+            "String used for replacing censored content.\n"
+            "**Currently:** `{0}`\n"
+            "Use `/set_replacement_string` to enable or disable."
+        ).format(replacement_string if replacement_string else 'Not Set'),
+        inline=False
+    )
+
+    display_name_filter_enabled = server_config.get("display_name_filter_enabled", False)
+    embed_1.add_field(
+        name="Display Name Filter",
+        value=(
+            "Filters member display names.\n"
+            "**Currently:** {0}\n"
+            "Use `/toggle_display_name_filter` to enable or disable."
+        ).format('Enabled' if display_name_filter_enabled else 'Disabled'),
+        inline=False
+    )
+
+    moderator_role_id = server_config.get("moderator_role_id")
+    moderator_role = interaction.guild.get_role(moderator_role_id) if moderator_role_id else None
+    embed_1.add_field(
+        name="Moderator Role",
+        value=(
+            "Role with moderator permissions.\n"
+            "**Currently:** {0}\n"
+            "Use `/set_moderator_role` to configure."
+        ).format(moderator_role.mention if moderator_role else 'Not Set'),
+        inline=False
+    )
+
+    term_approver_role_id = server_config.get("term_approver_role_id")
+    term_approver_role = interaction.guild.get_role(term_approver_role_id) if term_approver_role_id else None
+    embed_1.add_field(
+        name="Term Approver Role",
+        value=(
+            "Role that can approve term removals.\n"
+            "**Currently:** {0}\n"
+            "Use `/set_term_approver_role` to configure."
+        ).format(term_approver_role.mention if term_approver_role else 'Not Set'),
+        inline=False
+    )
+
+    punishments = server_config.get("punishments", {})
+    punishment_role_id = punishments.get("punishment_role")
+    punishment_role = interaction.guild.get_role(punishment_role_id) if punishment_role_id else None
+    max_violations = punishments.get('max_violations')
+    time_window = punishments.get('time_window')
+    punishment_duration = punishments.get('punishment_duration')
+
+    time_window_str = await format_timedelta(time_window) if time_window else 'Not Set'
+    punishment_duration_str = await format_timedelta(punishment_duration) if punishment_duration else 'Not Set'
+
+    punishment_settings = (
+        f"Max Violations: {max_violations}\n"
+        f"Time Window: {time_window_str}\n"
+        f"Punishment Role: {punishment_role.mention if punishment_role else 'Not Set'}\n"
+        f"Punishment Duration: {punishment_duration_str}\n"
+        "Use `/set_punishment` to configure."
+    )
+    embed_1.add_field(
+        name="Punishment Settings",
+        value=punishment_settings,
+        inline=False
+    )
+
+    embed_1.add_field(
+        name="Blacklist Management",
+        value=(
+            "Manage blacklists to filter specific terms.\n"
+            "Use the following commands to configure:\n"
+            "- `/edit_blacklist`: Create/edit blacklists.\n"
+            "- `/quick_add_blacklist`: Quick add terms.\n"
+            "- `/delete_blacklist`: Remove blacklists.\n"
+            "- `/list_blacklists`: View all blacklists."
+        ),
+        inline=False
+    )
+
+    embed_1.add_field(
+        name="Whitelist Management",
+        value=(
+            "Manage whitelists to allow specific terms.\n"
+            "Use the following commands to configure:\n"
+            "- `/edit_whitelist`: Create/edit whitelists.\n"
+            "- `/quick_add_whitelist`: Quick add terms.\n"
+            "- `/delete_whitelist`: Remove whitelists.\n"
+            "- `/list_whitelists`: View all whitelists."
+        ),
+        inline=False
+    )
+    
+    embed_2 = discord.Embed(title=f"{interaction.guild.name} Discord Server Content Filter Configuration", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
+
+    global_exceptions = server_config.get("global_exceptions", {"categories": [], "channels": [], "roles": []})
+    categories_list = []
+    for category_id in global_exceptions.get("categories", []):
+        category = interaction.guild.get_channel(category_id)
+        if category:
+            categories_list.append(category.name)
+        else:
+            categories_list.append(f"ID: {category_id}")
+
+    channels_list = []
+    for channel_id in global_exceptions.get("channels", []):
+        channel = interaction.guild.get_channel_or_thread(channel_id)
+        if channel:
+            if isinstance(channel, discord.Thread):
+                parent = channel.parent
+                if parent:
+                    channels_list.append(f"{parent.mention} → {channel.mention}")
+                else:
+                    channels_list.append(channel.mention)
+            else:
+                channels_list.append(channel.mention)
+        else:
+            channels_list.append(f"ID: {channel_id}")
+
+    roles_list = []
+    for role_id in global_exceptions.get("roles", []):
+        role = interaction.guild.get_role(role_id)
+        if role:
+            roles_list.append(role.mention)
+        else:
+            roles_list.append(f"ID: {role_id}")
+
+    global_exceptions_str = "Globally exempted categories, channels, and roles.\n**Currently:**\n"
+    if categories_list:
+        global_exceptions_str += "**Categories**: " + ", ".join(categories_list) + "\n"
+    if channels_list:
+        global_exceptions_str += "**Channels**: " + ", ".join(channels_list) + "\n"
+    if roles_list:
+        global_exceptions_str += "**Roles**: " + ", ".join(roles_list) + "\n"
+
+    if not global_exceptions_str:
+        global_exceptions_str = "No global exceptions set."
+    else:
+        if len(global_exceptions_str) > 1024:
+            global_exceptions_str = global_exceptions_str[:1021] + "..."
+
+    embed_2.add_field(name="Global Exceptions", value=global_exceptions_str, inline=False)
+    
+    embed_2.add_field(name="",
+        value=(
+            "Use the following commands to configure:\n"
+            "- `/add_global_category_exception`: Add category exceptions.\n"
+            "- `/remove_global_category_exception`: Remove category exceptions.\n"
+            "- `/add_global_channel_exception`: Add channel exceptions.\n"
+            "- `/remove_global_channel_exception`: Remove channel exceptions.\n"
+            "- `/add_global_role_exception`: Add role exceptions.\n"
+            "- `/remove_global_role_exception`: Remove role exceptions.\n"
+            "- `/list_global_exceptions`: View all global exceptions."
+        ),
+        inline=False
+    )
+
+    exceptions = server_config.get("exceptions", {"categories": {}, "channels": {}, "roles": {}})
+    exceptions_str = "Exceptions per blacklist.\n**Currently:**\n"
+    for exception_type in ["categories", "channels", "roles"]:
+        exception_dict = exceptions.get(exception_type, {})
+        if exception_dict:
+            exception_entries = []
+            for entity_id, blacklists in exception_dict.items():
+                entity_name = "Unknown"
+                if exception_type == "categories":
+                    entity = interaction.guild.get_channel(int(entity_id))
+                    entity_name = entity.name if entity else f"ID: {entity_id}"
+                elif exception_type == "channels":
+                    entity = interaction.guild.get_channel_or_thread(int(entity_id))
+                    if entity:
+                        if isinstance(entity, discord.Thread):
+                            parent = entity.parent
+                            entity_name = f"{parent.mention} → {entity.mention}" if parent else entity.mention
+                        else:
+                            entity_name = entity.mention
+                    else:
+                        entity_name = f"ID: {entity_id}"
+                elif exception_type == "roles":
+                    entity = interaction.guild.get_role(int(entity_id))
+                    entity_name = entity.mention if entity else f"ID: {entity_id}"
+                blacklists_str = ", ".join(blacklists)
+                exception_entries.append(f"{entity_name} (Blacklists: {blacklists_str})")
+            if exception_entries:
+                exceptions_str += f"**{exception_type.capitalize()}**:\n" + "\n".join(exception_entries) + "\n"
+
+    if not exceptions_str:
+        exceptions_str = "No exceptions set."
+    else:
+        if len(exceptions_str) > 1024:
+            exceptions_str = exceptions_str[:1021] + "..."
+
+    embed_2.add_field(name="Exceptions", value=exceptions_str, inline=False)
+    
+    embed_2.add_field(
+        name="",
+        value=(
+            "Use the following commands to configure:\n"
+            "- `/add_category_exception`: Add category exceptions.\n"
+            "- `/remove_category_exception`: Remove category exceptions.\n"
+            "- `/add_channel_exception`: Add channel exceptions.\n"
+            "- `/remove_channel_exception`: Remove channel exceptions.\n"
+            "- `/add_role_exception`: Add role exceptions.\n"
+            "- `/remove_role_exception`: Remove role exceptions.\n"
+            "- `/list_exceptions`: View all exceptions."
+        ),
+        inline=False
+    )
+
+    # Moderation Tools
+    embed_2.add_field(
+        name="Moderation Tools",
+        value=(
+            "Tools for moderation tasks.\n"
+            "Use the following commands:\n"
+            "- `/scan_last_messages`: Scan recent messages.\n"
+            "- `/lift_punishment`: Remove punishments.\n"
+            "- `/view_term_request_history`: View and manage term requests."
+        ),
+        inline=False
+    )
+
+    # User Commands
+    embed_2.add_field(
+        name="User Commands",
+        value=(
+            "Commands available to all users.\n"
+            "- `/request_term_removal`: Request removal of a term from blacklists.\n"
+            "- Context Menu Commands:\n"
+            "  - **Edit Censored Message**: Edit a censored message.\n"
+            "  - **Delete Censored Message**: Delete a censored message."
+        ),
+        inline=False
+    )
+
+    await interaction.response.send_message(embed=embed_1, ephemeral=True)
+    await interaction.followup.send(embed=embed_2, ephemeral=True)
+
 @bot.tree.command(name="set_moderator_role")
 @is_admin()
 async def set_moderator_role(interaction: discord.Interaction, role: discord.Role):
@@ -2126,6 +2613,15 @@ async def set_moderator_role(interaction: discord.Interaction, role: discord.Rol
     await save_server_config(interaction.guild.id, server_config)
     await interaction.response.send_message(f"Moderator role set to {role.mention}.", ephemeral=True)
 
+@bot.tree.command(name="set_term_approver_role")
+@is_admin()
+async def set_term_approver_role(interaction: discord.Interaction, role: discord.Role):
+    """Set the term approver role for the server."""
+    server_config = await load_server_config(interaction.guild.id)
+    server_config["term_approver_role_id"] = role.id
+    await save_server_config(interaction.guild.id, server_config)
+    await interaction.response.send_message(f"Term approver role set to {role.mention}.", ephemeral=True)
+
 @bot.tree.command(name="set_log_channel")
 @is_admin()
 async def set_log_channel(interaction: discord.Interaction, channel: Union[discord.Thread, discord.abc.GuildChannel]):
@@ -2133,7 +2629,16 @@ async def set_log_channel(interaction: discord.Interaction, channel: Union[disco
     server_config = await load_server_config(interaction.guild.id)
     server_config["log_channel_id"] = channel.id
     await save_server_config(interaction.guild.id, server_config)
-    await interaction.response.send_message(f"Log channel set to {channel.mention}")
+    await interaction.response.send_message(f"Log channel set to {channel.mention}", ephemeral=True)
+
+@bot.tree.command(name="set_replacement_string")
+@is_admin()
+async def set_replacement_string(interaction: discord.Interaction, replacement_string: str):
+    """Set a replacement string for censored content."""
+    server_config = await load_server_config(interaction.guild.id)
+    server_config["replacement_string"] = replacement_string
+    await save_server_config(interaction.guild.id, server_config)
+    await interaction.response.send_message(f"Replacement string set to {replacement_string}", ephemeral=True)
 
 @bot.tree.command(name="set_dm_notification")
 @is_admin()
@@ -2143,30 +2648,38 @@ async def set_dm_notification(interaction: discord.Interaction):
     message_content = server_config["dm_notifications"]
     
     class SetDMNotificationModal(discord.ui.Modal, title="Set DM Notification"):
-        def __init__(self):
+        def __init__(self, current_message):
             super().__init__()
             self.notification_message = discord.ui.TextInput(
                 label="DM Notification Message",
                 style=discord.TextStyle.paragraph,
                 required=True,
-                custom_id="notification_message",
-                default=message_content,
+                default=current_message,
                 max_length=2000,
-                placeholder="Enter notification message for censored content."
+                placeholder="DM for censored content. Available tags: {max_violations}, {time_window}, {punishment_duration}."
             )
             self.add_item(self.notification_message)
 
         async def on_submit(self, interaction: discord.Interaction):
-            await interaction.response.defer(ephemeral=True)
+            server_config = await load_server_config(interaction.guild.id)
             server_config["dm_notifications"] = self.notification_message.value.strip()
             await save_server_config(interaction.guild.id, server_config)
-            await interaction.followup.send(
-                "DM notification message set. Preview below:", 
-                embed=discord.Embed(description=self.notification_message.value),
-                ephemeral=True
-            )
+            
+            punishments = server_config.get("punishments")
+            max_violations = punishments.get("max_violations")
+            time_window = punishments.get("time_window")
+            punishment_duration = punishments.get("punishment_duration")
+            time_window_str = await format_timedelta(time_window)
+            punishment_duration_str = await format_timedelta(punishment_duration)
 
-    await interaction.response.send_modal(SetDMNotificationModal())
+            preview_message = self.notification_message.value.strip().format(
+                max_violations=max_violations,
+                time_window=time_window_str,
+                punishment_duration=punishment_duration_str
+            )
+            await interaction.response.send_message("DM notification message set. Preview below:", embed=discord.Embed(description=preview_message), ephemeral=True)
+
+    await interaction.response.send_modal(SetDMNotificationModal(message_content))
     
 @bot.tree.command(name="toggle_display_name_filter")
 @is_admin()
@@ -2176,7 +2689,7 @@ async def toggle_display_name_filter(interaction: discord.Interaction, enabled: 
     server_config["display_name_filter_enabled"] = enabled
     await save_server_config(interaction.guild.id, server_config)
     status = "enabled" if enabled else "disabled"
-    await interaction.response.send_message(f"Display name filtering {status}.")
+    await interaction.response.send_message(f"Display name filtering {status}.", ephemeral=True)
 
 # Commands - Punishment Management
 @bot.tree.command(name="set_punishment")
@@ -2193,7 +2706,7 @@ async def set_punishment(interaction: discord.Interaction, max_violations: int,
         "punishment_duration": timedelta(hours=duration_hours)
     })
     await save_server_config(interaction.guild.id, server_config)
-    await interaction.response.send_message("Punishment settings updated.")
+    await interaction.response.send_message("Punishment settings updated.", ephemeral=True)
 
 # Commands - Blacklist and Whitelist Management
 @bot.tree.command(name="quick_add_blacklist")
@@ -2288,9 +2801,9 @@ async def delete_blacklist(interaction: discord.Interaction, name: str):
     if name in server_config["blacklists"]:
         del server_config["blacklists"][name]
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Deleted blacklist '{name}'.")
+        await interaction.response.send_message(f"Deleted blacklist '{name}'.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"Blacklist '{name}' not found.")
+        await interaction.response.send_message(f"Blacklist '{name}' not found.", ephemeral=True)
 
 @bot.tree.command(name="delete_whitelist")
 @is_admin()
@@ -2300,9 +2813,9 @@ async def delete_whitelist(interaction: discord.Interaction, name: str):
     if name in server_config["whitelists"]:
         del server_config["whitelists"][name]
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Deleted whitelist '{name}'.")
+        await interaction.response.send_message(f"Deleted whitelist '{name}'.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"Whitelist '{name}' not found.")
+        await interaction.response.send_message(f"Whitelist '{name}' not found.", ephemeral=True)
 
 # Commands - Exception Management
 @bot.tree.command(name="add_category_exception")
@@ -2324,7 +2837,7 @@ async def add_category_exception(interaction: discord.Interaction, category: dis
     if blacklist_name not in exceptions["categories"][category_id]:
         exceptions["categories"][category_id].append(blacklist_name)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Added exception for category {category.name} to blacklist '{blacklist_name}'.")
+        await interaction.response.send_message(f"Added exception for category {category.name} to blacklist '{blacklist_name}'.", ephemeral=True)
     else:
         await interaction.response.send_message(f"Category {category.name} is already excepted from '{blacklist_name}'.", ephemeral=True)
 
@@ -2376,7 +2889,7 @@ async def add_role_exception(interaction: discord.Interaction, role: discord.Rol
     if blacklist_name not in exceptions["roles"][role_id]:
         exceptions["roles"][role_id].append(blacklist_name)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Added exception for role {role.name} to blacklist '{blacklist_name}'.")
+        await interaction.response.send_message(f"Added exception for role {role.name} to blacklist '{blacklist_name}'.", ephemeral=True)
     else:
         await interaction.response.send_message(f"Role {role.name} is already excepted from '{blacklist_name}'.", ephemeral=True)
 
@@ -2407,9 +2920,9 @@ async def remove_category_exception(
         if not exceptions[category_id]:
             del exceptions[category_id]
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Removed {category_name} exception from '{blacklist_name}'.")
+        await interaction.response.send_message(f"Removed {category_name} exception from '{blacklist_name}'.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{category_name} is not excepted from '{blacklist_name}'.")
+        await interaction.response.send_message(f"{category_name} is not excepted from '{blacklist_name}'.", ephemeral=True)
         
 @bot.tree.command(name="remove_channel_exception")
 @is_admin()
@@ -2439,9 +2952,9 @@ async def remove_channel_exception(
         if not exceptions[channel_id]:
             del exceptions[channel_id]
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Removed {channel_mention} exception from '{blacklist_name}'.")
+        await interaction.response.send_message(f"Removed {channel_mention} exception from '{blacklist_name}'.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{channel_mention} is not excepted from '{blacklist_name}'.")
+        await interaction.response.send_message(f"{channel_mention} is not excepted from '{blacklist_name}'.", ephemeral=True)
         
 @bot.tree.command(name="remove_role_exception")
 @is_admin()
@@ -2470,9 +2983,9 @@ async def remove_role_exception(
         if not exceptions[role_id]:
             del exceptions[role_id]
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Removed {role_mention} exception from '{blacklist_name}'.")
+        await interaction.response.send_message(f"Removed {role_mention} exception from '{blacklist_name}'.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{role_mention} is not excepted from '{blacklist_name}'.")
+        await interaction.response.send_message(f"{role_mention} is not excepted from '{blacklist_name}'.", ephemeral=True)
 
 # Commands - Global Exception Management
 @bot.tree.command(name="add_global_category_exception")
@@ -2484,9 +2997,9 @@ async def add_global_category_exception(interaction: discord.Interaction, catego
     if category.id not in global_exceptions["categories"]:
         global_exceptions["categories"].append(category.id)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Added {category.name} to global exceptions.")
+        await interaction.response.send_message(f"Added {category.name} to global exceptions.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{category.name} already globally excepted.")
+        await interaction.response.send_message(f"{category.name} already globally excepted.", ephemeral=True)
 
 @bot.tree.command(name="add_global_channel_exception")
 @is_admin()
@@ -2497,9 +3010,9 @@ async def add_global_channel_exception(interaction: discord.Interaction,
     if channel.id not in server_config["global_exceptions"]["channels"]:
         server_config["global_exceptions"]["channels"].append(channel.id)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Added {channel.mention} to global exceptions.")
+        await interaction.response.send_message(f"Added {channel.mention} to global exceptions.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{channel.mention} already globally excepted.")
+        await interaction.response.send_message(f"{channel.mention} already globally excepted.", ephemeral=True)
 
 @bot.tree.command(name="add_global_role_exception")
 @is_admin()
@@ -2509,9 +3022,9 @@ async def add_global_role_exception(interaction: discord.Interaction, role: disc
     if role.id not in server_config["global_exceptions"]["roles"]:
         server_config["global_exceptions"]["roles"].append(role.id)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Added {role.name} to global exceptions.")
+        await interaction.response.send_message(f"Added {role.name} to global exceptions.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{role.name} already globally excepted.")
+        await interaction.response.send_message(f"{role.name} already globally excepted.", ephemeral=True)
 
 @bot.tree.command(name="remove_global_category_exception")
 @is_admin()
@@ -2530,9 +3043,9 @@ async def remove_global_category_exception(interaction: discord.Interaction, cat
     if category_id in server_config["global_exceptions"]["categories"]:
         server_config["global_exceptions"]["categories"].remove(category_id)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Removed {category_name} from global exceptions.")
+        await interaction.response.send_message(f"Removed {category_name} from global exceptions.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{category_name} not globally excepted.")
+        await interaction.response.send_message(f"{category_name} not globally excepted.", ephemeral=True)
 
 @bot.tree.command(name="remove_global_channel_exception")
 @is_admin()
@@ -2554,9 +3067,9 @@ async def remove_global_channel_exception(interaction: discord.Interaction,
     if channel_id in server_config["global_exceptions"]["channels"]:
         server_config["global_exceptions"]["channels"].remove(channel_id)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Removed {channel_mention} from global exceptions.")
+        await interaction.response.send_message(f"Removed {channel_mention} from global exceptions.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{channel_mention} not globally excepted.")
+        await interaction.response.send_message(f"{channel_mention} not globally excepted.", ephemeral=True)
 
 @bot.tree.command(name="remove_global_role_exception")
 @is_admin()
@@ -2575,19 +3088,19 @@ async def remove_global_role_exception(interaction: discord.Interaction, role: O
     if role_id in server_config["global_exceptions"]["roles"]:
         server_config["global_exceptions"]["roles"].remove(role_id)
         await save_server_config(interaction.guild.id, server_config)
-        await interaction.response.send_message(f"Removed {role_name} from global exceptions.")
+        await interaction.response.send_message(f"Removed {role_name} from global exceptions.", ephemeral=True)
     else:
-        await interaction.response.send_message(f"{role_name} not globally excepted.")
+        await interaction.response.send_message(f"{role_name} not globally excepted.", ephemeral=True)
 
 # Commands - List and Display
 @bot.tree.command(name="list_blacklists")
 @is_moderator()
 async def list_blacklists(interaction: discord.Interaction):
     """List all blacklists and their terms."""
-    await interaction.response.defer(ephemeral=False)
+    await interaction.response.defer(ephemeral=True)
     server_config = await load_server_config(interaction.guild.id)
     if not server_config["blacklists"]:
-        await interaction.followup.send("No blacklists found.")
+        await interaction.followup.send("No blacklists found.", ephemeral=True)
         return
     blacklist_summary = "\n".join([
         f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
@@ -2599,10 +3112,10 @@ async def list_blacklists(interaction: discord.Interaction):
 @is_moderator()
 async def list_whitelists(interaction: discord.Interaction):
     """List all whitelists and their terms."""
-    await interaction.response.defer(ephemeral=False)
+    await interaction.response.defer(ephemeral=True)
     server_config = await load_server_config(interaction.guild.id)
     if not server_config["whitelists"]:
-        await interaction.followup.send("No whitelists found.")
+        await interaction.followup.send("No whitelists found.", ephemeral=True)
         return
     whitelist_summary = "\n".join([
         f"**{name}**: {', '.join(f'`{term}`' for term in terms)}"
@@ -2638,7 +3151,7 @@ async def list_exceptions(interaction: discord.Interaction):
     embed.add_field(name="Channels", value="\n".join(channels) if channels else "None", inline=False)
     embed.add_field(name="Roles", value="\n".join(roles) if roles else "None", inline=False)
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="list_global_exceptions")
@@ -2669,7 +3182,7 @@ async def list_global_exceptions(interaction: discord.Interaction):
     embed.add_field(name="Channels", value=", ".join(channels) if channels else "None", inline=False)
     embed.add_field(name="Roles", value=", ".join(roles) if roles else "None", inline=False)
     
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Commands - Moderation
 @bot.tree.command(name="lift_punishment")
@@ -2794,6 +3307,26 @@ async def scan_last_messages(interaction: discord.Interaction, limit: int):
         content=f"Scan complete: {deleted_count} message(s) deleted out of {scanned_count} scanned."
     )
 
+@bot.tree.command(name="view_term_request_history")
+@is_term_approver()
+async def view_term_request_history(interaction: discord.Interaction):
+    """View and manage term removal requests history."""
+    guild_id = interaction.guild.id
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute("""
+            SELECT term, reporter_id, status, reason, timestamp, blacklists_modified
+            FROM term_removal_requests
+            WHERE guild_id = ?
+            ORDER BY timestamp DESC
+        """, (guild_id,)) as cursor:
+            requests = await cursor.fetchall()
+    if not requests:
+        await interaction.response.send_message("No term removal requests found.", ephemeral=True)
+        return
+    # Create the view and send the initial message
+    view = TermRequestHistoryView(interaction.user, requests)
+    await interaction.response.send_message(embed=view.current_embed(), view=view, ephemeral=True)
+
 # User Commands
 @bot.tree.command(name="request_term_removal")
 @app_commands.describe(
@@ -2810,25 +3343,19 @@ async def request_term_removal(interaction: discord.Interaction, term: str):
     term_in_blacklist = any(term in terms for terms in blacklists.values())
     if not term_in_blacklist:
         await interaction.response.send_message(
-            f"The term '{term}' is not currently in any blacklist. Please check the spelling and ensure you supply the term exactly as shown in the DM notification.",
+            f"The term `{term}` is not currently in any blacklist. Please check the spelling and ensure you supply the `term` (__***not***__ necessarily the blocked word or phrase) exactly as shown in the DM notification.",
             ephemeral=True
         )
         return
         
     log_channel_id = server_config.get("log_channel_id")
     if not log_channel_id:
-        await interaction.response.send_message(
-            "Log channel is not configured. Please contact an administrator.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("Log channel is not configured. Please contact an administrator.", ephemeral=True)
         return
 
     log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
     if not log_channel:
-        await interaction.response.send_message(
-            "Log channel not found. Please contact an administrator.",
-            ephemeral=True
-        )
+        await interaction.response.send_message("Log channel not found. Please contact an administrator.", ephemeral=True)
         return
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -2840,22 +3367,13 @@ async def request_term_removal(interaction: discord.Interaction, term: str):
             if row:
                 status, reason = row
                 if status == 'disapproved':
-                    await interaction.response.send_message(
-                        f"Your request to remove `{term}` has been previously disapproved.\n\n**Reason:** {reason}",
-                        ephemeral=True
-                    )
+                    await interaction.response.send_message(f"Your request to remove `{term}` has been previously disapproved.\n\n**Reason:** {reason}",ephemeral=True)
                     return
                 elif status == 'pending':
-                    await interaction.response.send_message(
-                        f"A request to remove `{term}` is already pending.",
-                        ephemeral=True
-                    )
+                    await interaction.response.send_message(f"A request to remove `{term}` is already pending.", ephemeral=True)
                     return
                 elif status == 'approved':
-                    await interaction.response.send_message(
-                        f"The term `{term}` has already been approved for removal.",
-                        ephemeral=True
-                    )
+                    await interaction.response.send_message(f"The term `{term}` has already been approved for removal.",ephemeral=True)
                     return
 
     current_time = datetime.now(timezone.utc).isoformat()
@@ -2866,8 +3384,13 @@ async def request_term_removal(interaction: discord.Interaction, term: str):
         """, (guild_id, term, user_id, current_time))
         await db.commit()
 
+    term_approver_role_id = server_config.get("term_approver_role_id")
     moderator_role_id = server_config.get("moderator_role_id")
-    if moderator_role_id:
+
+    if term_approver_role_id:
+        term_approver_role = interaction.guild.get_role(term_approver_role_id)
+        role_mention = term_approver_role.mention if term_approver_role else "@here"
+    elif moderator_role_id:
         moderator_role = interaction.guild.get_role(moderator_role_id)
         role_mention = moderator_role.mention if moderator_role else "@here"
     else:
@@ -2885,11 +3408,7 @@ async def request_term_removal(interaction: discord.Interaction, term: str):
 
     view = TermRemovalApprovalView(guild_id, term, user_id)
 
-    message = await log_channel.send(
-        content=f"{role_mention}, a new term removal request has been submitted.",
-        embed=embed,
-        view=view
-    )
+    message = await log_channel.send(content=f"{role_mention}, a new term removal request has been submitted.", embed=embed, view=view)
 
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("""
@@ -2899,10 +3418,7 @@ async def request_term_removal(interaction: discord.Interaction, term: str):
         """, (message.id, guild_id, term))
         await db.commit()
 
-    await interaction.response.send_message(
-        "Your term removal request has been submitted for review.",
-        ephemeral=True
-    )
+    await interaction.response.send_message("Your term removal request has been submitted for review.", ephemeral=True)
 
 # Context Menu Commands
 @bot.tree.context_menu(name="Edit Censored Message")

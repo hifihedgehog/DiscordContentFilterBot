@@ -2501,7 +2501,7 @@ async def view_configuration(interaction: discord.Interaction):
     if roles_list:
         global_exceptions_str += "**Roles**: " + ", ".join(roles_list) + "\n"
 
-    if not any(global_exceptions.values())::
+    if not any(global_exceptions.values()):
         global_exceptions_str = "No global exceptions set."
     else:
         if len(global_exceptions_str) > 1024:
@@ -2552,7 +2552,7 @@ async def view_configuration(interaction: discord.Interaction):
             if exception_entries:
                 exceptions_str += f"**{exception_type.capitalize()}**:\n" + "\n".join(exception_entries) + "\n"
 
-    if not any(exceptions.values())::
+    if not any(exceptions.values()):
         exceptions_str = "No exceptions set."
     else:
         if len(exceptions_str) > 1024:

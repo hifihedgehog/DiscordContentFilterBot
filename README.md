@@ -12,6 +12,11 @@ By default, the standard SQLite distribution will not work as this bot specifica
 
 ## Features
 
+- **View Server Configuration**
+  - See your current server configuration and all of the associated commands.
+
+    ![ezgif-4-f55a550bbf](https://github.com/user-attachments/assets/854a21f4-257c-4d1e-9a70-e36ee3d394a8)
+
 - **Blacklist and Whitelist Customization**
   - Add your first blacklist and optionally whitelist from a variety of sources.
   - Here are several blacklist sources to get you started. Note you may need to preprocess them if you want to extract their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task.

@@ -166,6 +166,7 @@ python content_filter.py
 - `/set_log_channel` - Set logging channel
 - `/set_dm_notification` - Configure DM notifications
 - `/set_punishment` - Configure punishment settings
+- `/set_replacement_string` - Configure replacement string
 - `/toggle_display_name_filter` - Toggle name filtering
 
 ### Blacklist Management

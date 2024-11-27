@@ -1,6 +1,6 @@
 # Discord Content Filter Bot
 
-A feature-rich and expertly crafted Discord censoring bot that provides dual-mode content filtering via term-based pattern matching and regular expressions, customizable blacklists and whitelists, global and blacklist-level exceptions, customizable DM messaging, and a time- and occurrence-based punishment system. This bot feature set surpasses a popular paid Discord censoring service by going the extra mile in doing so. Content Filter Bot supports long Nitro-length messages, allows users to edit and delete their censored messages, provides detailed insight into censors in user DMs and system logging, lets users request terms to get removed from the blacklists, and so much more.
+A feature-rich and expertly crafted Discord censoring bot that provides dual-mode content filtering via term-based pattern matching and regular expressions, customizable blacklists and whitelists, global and blacklist-level exceptions, customizable DM messaging, and a time- and occurrence-based punishment system. This bot feature set surpasses a popular paid Discord censoring service in form and function. Content Filter Bot supports long Nitro-length messages, allows users to edit and delete their censored messages, provides detailed insight into censors in user DMs and system logging, lets users request terms to get removed from the blacklists, and so much more.
 
 ## Important: SQLite WAL2 Requirement
 

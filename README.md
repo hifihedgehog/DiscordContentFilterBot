@@ -1,6 +1,6 @@
 # Discord Content Filter Bot
 
-A feature-rich and expertly crafted Discord censoring bot that provides dual-mode content filtering via term-based pattern matching and regular expressions, customizable blacklists and whitelists, global and blacklist-level exceptions, customizable DM messaging, and a time- and occurrence-based punishment system. This bot feature set surpasses a popular paid Discord censoring service by going the extra mile in doing so. Content Filter Bot supports long Nitro-length messages, allows users to edit and delete their censored messages, provides detailed insight into censors in user DMs and system logging, and much more.
+A feature-rich and expertly crafted Discord censoring bot that provides dual-mode content filtering via term-based pattern matching and regular expressions, customizable blacklists and whitelists, global and blacklist-level exceptions, customizable DM messaging, and a time- and occurrence-based punishment system. This bot feature set surpasses a popular paid Discord censoring service by going the extra mile in doing so. Content Filter Bot supports long Nitro-length messages, allows users to edit and delete their censored messages, provides detailed insight into censors in user DMs and system logging, lets user request terms to get removed from the blacklists, and so much more.
 
 ## Important: SQLite WAL2 Requirement
 
@@ -154,7 +154,9 @@ python content_filter.py
 ## Commands
 
 ### Admin Commands
+- `/view_configuration` - View the current bot configuration
 - `/set_moderator_role` - Set the moderator role
+- `/set_term_approver_role` - Set term approver role
 - `/set_log_channel` - Set logging channel
 - `/set_dm_notification` - Configure DM notifications
 - `/set_punishment` - Configure punishment settings
@@ -191,8 +193,10 @@ python content_filter.py
 ### Moderation Tools
 - `/scan_last_messages` - Scan recent messages
 - `/lift_punishment` - Remove punishments
+- `/view_term_request_history` - View and manage term requests
 
-### Message Editing and Deletion
+### User
+- `/request_term_removal` - Request removal of a term from blacklists
 - Context menu - `Edit Censored Message` - Edit a censored message
 - Context menu - `Delete Censored Message` - Delete a censored message
   
@@ -226,7 +230,9 @@ The bot uses a JSON-based configuration system with the following main component
 		"days": 0,
 		"seconds": 3600,
 		"microseconds": 0
-	}
+	},
+	"dm_notifications": "Your content was modified because of inappropriate content or a false positive. Note that you can always edit and delete your censored messages from the context menu under *Apps→Edit Censored Message* and *Apps→Delete Censored Message*. If you believe this censor to be in error, please report the erroneous term(s) with the slash command `/request_term_removal`. We greatly appreciate users who report false positives that should be whitelisted.\n\n Note that if you repeatedly try to circumvent a censor including false positives, after {max_violations} attempt(s) in {time_window}, you will be automatically timed out for the period of {punishment_duration}. Outside of the system's automated punishment, moderators will never manually punish a user for a false positive. Thank you for your understanding.",
+	"replacement_string": "***"
 }
 ```
 

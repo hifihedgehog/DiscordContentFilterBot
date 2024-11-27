@@ -182,20 +182,20 @@ python content_filter.py
 - `/list_whitelists` - View all whitelists
 
 ### Exception Management
+- `/add_global_category_exception` - Add global category exceptions
+- `/remove_global_category_exception` - Remove global category exceptions
+- `/add_global_channel_exception` - Add global channel exceptions
+- `/remove_global_channel_exception` - Remove global channel exceptions
+- `/add_global_role_exception` - Add global role exceptions
+- `/remove_global_role_exception` - Remove global role exceptions
+- `/list_global_exceptions` - View all global exceptions
 - `/add_category_exception` - Add category exceptions
 - `/add_channel_exception` - Add channel exceptions
 - `/add_role_exception` - Add role exceptions
 - `/remove_category_exception` - Remove category exceptions
 - `/remove_channel_exception` - Remove channel exceptions
 - `/remove_role_exception` - Remove role exceptions
-- `/add_global_category_exception` - Add global category exceptions
-- `/add_global_channel_exception` - Add global channel exceptions
-- `/add_global_role_exception` - Add global role exceptions
-- `/remove_global_category_exception` - Remove global category exceptions
-- `/remove_global_channel_exception` - Remove global channel exceptions
-- `/remove_global_role_exception` - Remove global role exceptions
 - `/list_exceptions` - View all exceptions
-- `/list_global_exceptions` - View all global exceptions
 
 ### Moderation Tools
 - `/scan_last_messages` - Scan recent messages

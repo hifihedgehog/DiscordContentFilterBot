@@ -26,7 +26,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)
     - [FreeWebHeaders.com](https://www.freewebheaders.com/category/profanity/profanity-word-list/)
   - Create, modify, and delete any number of your own blacklists and whitelists with no limits.
-  - Terms in a blacklist or whitelist can be made up of exact terms and regular expressions. Prefix your regular expressions with `re:` and the system automatically detect the line as a regular expression. Leave the name blank when executing the blacklist edit command to explore through the current set of blacklists. Specify a new or current list by the blacklist name parameter. The same approach applies to whitelists as well.
+  - Terms in a blacklist or whitelist can be made up of exact terms, URL-only terms, and regular expressions. Prefix your regular expressions with `re:` and the system automatically detects them as regular expressions. Prefix your URL terms with `url:` and the system will apply them exclusively to URLs. URL terms can be exact terms or regular expressions. A URL is defined as link beginning with `http://`, `https://`, `discord.gg/`, or `discord.com/invite/`. Leave the name parameter blank when executing the blacklist edit command to explore through the current set of blacklists. Specify a new or current list by the blacklist name parameter. The same approach applies to whitelists as well.
 
     ![ezgif-1-69ef3929b5](https://github.com/user-attachments/assets/6fa47fa0-99bf-441b-9fc8-95d6083d5391)
 

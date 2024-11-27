@@ -297,7 +297,7 @@ async def load_server_config(guild_id: int) -> dict:
 
                 config.setdefault("moderator_role_id", None)
                 config.setdefault("term_approver_role_id", None)
-                config.setdefault("dm_notifications", default_dm_message)
+                config.setdefault("dm_notification", default_dm_message)
                 config.setdefault("replacement_string", default_replacement_string)
                 
                 server_config_cache[guild_id] = config
@@ -318,7 +318,7 @@ async def load_server_config(guild_id: int) -> dict:
         },
         "display_name_filter_enabled": False,
         "log_channel_id": None,
-        "dm_notifications": default_dm_message,
+        "dm_notification": default_dm_message,
         "moderator_role_id": None,
         "term_approver_role_id": None,
         "replacement_string": default_replacement_string,
@@ -613,7 +613,8 @@ async def check_exceptions(channel: Optional[Union[discord.Thread, discord.abc.G
 
 # Content Filtering Functions
 async def censor_content(content: str, channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]], 
-                         author: Union[discord.User, discord.Member], server_config: dict) -> str:
+                         author: Union[discord.User, discord.Member], server_config: dict,
+                         replacement_string_override: str = None) -> str:
     """Apply censorship to content based on blacklists and whitelists."""
     if await is_globally_exempt(channel, author, server_config):
         return content
@@ -621,7 +622,8 @@ async def censor_content(content: str, channel: Optional[Union[discord.Thread, d
     blacklists = server_config.get("blacklists", {})
     whitelists = server_config.get("whitelists", {})
     replacement_string = server_config.get("replacement_string", "***")
-    replacement_string = escape_markdown(replacement_string)
+    replacement_string = replacement_string if await is_emoji_or_sequence(replacement_string) else escape_markdown(replacement_string)
+    replacement_string = replacement_string_override if replacement_string_override else replacement_string
     normalized_content, index_map = await normalize_text(content)
     exempt_ranges_original = []
     exempt_ranges_normalized = []
@@ -1029,7 +1031,7 @@ async def notify_user_message(message, censored_message, reposted_message, serve
     embeds = []
     
     embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.red())
-    value = server_config.get("dm_notifications", "Your message was filtered because it contains blacklisted content.")
+    value = server_config.get("dm_notification", "Your message was filtered because it contains blacklisted content.")
     punishments = server_config.get("punishments")
     max_violations = punishments.get("max_violations")
     time_window = punishments.get("time_window")
@@ -1096,7 +1098,7 @@ async def notify_user_thread_title(thread, censored_title, server_config):
     embeds = []
     
     embed_1 = discord.Embed(title=f"{thread.guild.name} Discord Server Content Filter Notification", color=discord.Color.orange())
-    value = server_config.get("dm_notifications", "Your thread was filtered because it contains blacklisted content.")
+    value = server_config.get("dm_notification", "Your thread was filtered because it contains blacklisted content.")
     punishments = server_config.get("punishments")
     max_violations = punishments.get("max_violations")
     time_window = punishments.get("time_window")
@@ -1151,7 +1153,7 @@ async def notify_user_reaction_removal(user, emoji, message, server_config):
     embeds = []
     
     embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.yellow())
-    value = server_config.get("dm_notifications", "Your reaction was filtered because it contains blacklisted content.")
+    value = server_config.get("dm_notification", "Your reaction was filtered because it contains blacklisted content.")
     punishments = server_config.get("punishments")
     max_violations = punishments.get("max_violations")
     time_window = punishments.get("time_window")
@@ -1201,7 +1203,7 @@ async def notify_user_display_name(member, censored_display_name, server_config)
     embeds = []
     
     embed_1 = discord.Embed(title=f"{member.guild.name} Discord Server Content Filter Notification", color=discord.Color.purple())
-    value = server_config.get("dm_notifications", "Your display name was filtered because it contains blacklisted content.")
+    value = server_config.get("dm_notification", "Your display name was filtered because it contains blacklisted content.")
     punishments = server_config.get("punishments")
     max_violations = punishments.get("max_violations")
     time_window = punishments.get("time_window")
@@ -1253,7 +1255,7 @@ async def notify_user_scan_deletion(message: discord.Message, censored_message: 
     embeds = []
     
     embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.red())
-    value = server_config.get("dm_notifications", "Your message was removed because it contains blacklisted content.")
+    value = server_config.get("dm_notification", "Your message was removed because it contains blacklisted content.")
     punishments = server_config.get("punishments")
     max_violations = punishments.get("max_violations")
     time_window = punishments.get("time_window")
@@ -1608,7 +1610,10 @@ async def filter_display_name(member):
     """Filter member display names."""
     server_config = await load_server_config(member.guild.id)
     if server_config["display_name_filter_enabled"]:
-        censored_display_name = await censor_content(member.display_name, None, member, server_config)
+        replacement_string = server_config.get("replacement_string", "***")
+        replacement_string = replacement_string if len(replacement_string) <= 10 else "***"
+        censored_display_name = await censor_content(member.display_name, None, member, server_config, replacement_string)
+        censored_display_name = censored_display_name[:32]
         if censored_display_name != member.display_name:
             try:
                 await log_censored_display_name(member, censored_display_name, server_config)
@@ -1702,8 +1707,10 @@ async def on_raw_message_edit(payload):
 async def on_thread_create(thread):
     """Handle thread creation."""
     server_config = await load_server_config(thread.guild.id)
-    censored_title = await censor_content(thread.name, thread, thread.owner, server_config)
-    
+    replacement_string = server_config.get("replacement_string", "***")
+    replacement_string = replacement_string if len(replacement_string) <= 10 else "***"
+    censored_title = await censor_content(thread.name, thread, thread.owner, server_config, replacement_string)
+    censored_title = censored_title[:100]
     if censored_title != thread.name:
         try:
             if thread.owner:
@@ -1727,7 +1734,10 @@ async def on_raw_thread_update(payload):
         return
 
     server_config = await load_server_config(thread.guild.id)
-    censored_title = await censor_content(thread.name, thread, thread.owner, server_config)
+    replacement_string = server_config.get("replacement_string", "***")
+    replacement_string = replacement_string if len(replacement_string) <= 10 else "***"
+    censored_title = await censor_content(thread.name, thread, thread.owner, server_config, replacement_string)
+    censored_title = censored_title[:100]
     if censored_title != thread.name:
         try:
             if thread.owner:
@@ -2351,41 +2361,6 @@ async def view_configuration(interaction: discord.Interaction):
     server_config = await load_server_config(guild_id)
     embed_1 = discord.Embed(title=f"{interaction.guild.name} Discord Server Content Filter Configuration", color=discord.Color.blue(), timestamp=datetime.now(timezone.utc))
 
-    log_channel_id = server_config.get("log_channel_id")
-    log_channel = interaction.guild.get_channel_or_thread(log_channel_id) if log_channel_id else None
-    embed_1.add_field(
-        name="Log Channel",
-        value=(
-            "Channel where logs are sent.\n"
-            "**Currently:** {0}\n"
-            "Use `/set_log_channel` to configure."
-        ).format(log_channel.mention if log_channel else 'Not Set'),
-        inline=False
-    )
-    
-    replacement_string = server_config.get("replacement_string", False)
-    replacement_string = escape_markdown(replacement_string)
-    embed_1.add_field(
-        name="Replacement String",
-        value=(
-            "String used for replacing censored content.\n"
-            "**Currently:** `{0}`\n"
-            "Use `/set_replacement_string` to configure."
-        ).format(replacement_string if replacement_string else 'Not Set'),
-        inline=False
-    )
-
-    display_name_filter_enabled = server_config.get("display_name_filter_enabled", False)
-    embed_1.add_field(
-        name="Display Name Filter",
-        value=(
-            "Filters member display names.\n"
-            "**Currently:** {0}\n"
-            "Use `/toggle_display_name_filter` to enable or disable."
-        ).format('Enabled' if display_name_filter_enabled else 'Disabled'),
-        inline=False
-    )
-
     moderator_role_id = server_config.get("moderator_role_id")
     moderator_role = interaction.guild.get_role(moderator_role_id) if moderator_role_id else None
     embed_1.add_field(
@@ -2410,6 +2385,38 @@ async def view_configuration(interaction: discord.Interaction):
         inline=False
     )
 
+    log_channel_id = server_config.get("log_channel_id")
+    log_channel = interaction.guild.get_channel_or_thread(log_channel_id) if log_channel_id else None
+    embed_1.add_field(
+        name="Log Channel",
+        value=(
+            "Channel where logs are sent.\n"
+            "**Currently:** {0}\n"
+            "Use `/set_log_channel` to configure."
+        ).format(log_channel.mention if log_channel else 'Not Set'),
+        inline=False
+    )
+    
+    dm_notification = server_config.get("dm_notification")
+    punishments = server_config.get("punishments")
+    max_violations = punishments.get("max_violations")
+    time_window = punishments.get("time_window")
+    punishment_duration = punishments.get("punishment_duration")
+    time_window_str = await format_timedelta(time_window)
+    punishment_duration_str = await format_timedelta(punishment_duration)
+    dm_notification = dm_notification.format(
+        max_violations=max_violations,
+        time_window=time_window_str,
+        punishment_duration=punishment_duration_str
+    )
+    dm_notification=(
+        "DM notification sent when content is filtered.\n"
+        "Use `/set_dm_notification` to configure.\n"
+        "**Currently:**\n{0}"
+    ).format(dm_notification if dm_notification else 'Not Set')
+    
+    embed_1.add_field(name="DM Notification", value=dm_notification[:1021] + "..." if len(dm_notification) > 1024 else dm_notification, inline=False)
+    
     punishments = server_config.get("punishments", {})
     punishment_role_id = punishments.get("punishment_role")
     punishment_role = interaction.guild.get_role(punishment_role_id) if punishment_role_id else None
@@ -2427,9 +2434,28 @@ async def view_configuration(interaction: discord.Interaction):
         f"Punishment Duration: {punishment_duration_str}\n"
         "Use `/set_punishment` to configure."
     )
+    embed_1.add_field(name="Punishment Settings", value=punishment_settings, inline=False)
+    
+    replacement_string = server_config.get("replacement_string", "***")
+    replacement_string = replacement_string if await is_emoji_or_sequence(replacement_string) else escape_markdown(replacement_string)
     embed_1.add_field(
-        name="Punishment Settings",
-        value=punishment_settings,
+        name="Replacement String",
+        value=(
+            "String used for replacing censored content.\n"
+            "**Currently:** {0}\n"
+            "Use `/set_replacement_string` to configure."
+        ).format(replacement_string if replacement_string else 'Not Set'),
+        inline=False
+    )
+    
+    display_name_filter_enabled = server_config.get("display_name_filter_enabled", False)
+    embed_1.add_field(
+        name="Display Name Filter",
+        value=(
+            "Filters member display names.\n"
+            "**Currently:** {0}\n"
+            "Use `/toggle_display_name_filter` to enable or disable."
+        ).format('Enabled' if display_name_filter_enabled else 'Disabled'),
         inline=False
     )
 
@@ -2638,14 +2664,14 @@ async def set_replacement_string(interaction: discord.Interaction, replacement_s
     server_config = await load_server_config(interaction.guild.id)
     server_config["replacement_string"] = replacement_string
     await save_server_config(interaction.guild.id, server_config)
-    await interaction.response.send_message(f"Replacement string set to {replacement_string}", ephemeral=True)
+    await interaction.response.send_message(f"Replacement string set to `{replacement_string}`", ephemeral=True)
 
 @bot.tree.command(name="set_dm_notification")
 @is_admin()
 async def set_dm_notification(interaction: discord.Interaction):
     """Set custom DM notification message using modal."""
     server_config = await load_server_config(interaction.guild.id)
-    message_content = server_config["dm_notifications"]
+    message_content = server_config["dm_notification"]
     
     class SetDMNotificationModal(discord.ui.Modal, title="Set DM Notification"):
         def __init__(self, current_message):
@@ -2662,7 +2688,7 @@ async def set_dm_notification(interaction: discord.Interaction):
 
         async def on_submit(self, interaction: discord.Interaction):
             server_config = await load_server_config(interaction.guild.id)
-            server_config["dm_notifications"] = self.notification_message.value.strip()
+            server_config["dm_notification"] = self.notification_message.value.strip()
             await save_server_config(interaction.guild.id, server_config)
             
             punishments = server_config.get("punishments")

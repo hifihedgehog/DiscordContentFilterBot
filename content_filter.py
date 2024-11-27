@@ -1579,7 +1579,7 @@ async def check_and_apply_punishment(user: discord.Member, guild_id: int, server
                 embeds = []
                 embed_punish_1 = discord.Embed(title=f"{user.guild.name} Discord Server Content Filter Notification", description ="You have received a temporary role due to repeated violations of the server's content rules.", color=discord.Color.dark_red())
                 embed_punish_2 = discord.Embed(title="Punishment Applied", color=discord.Color.dark_red(), timestamp=current_time)
-                embed_punish_2.add_field(name="Punishment", value=f"Temporary role: `{role.name}`", inline=False)
+                embed_punish_2.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
                 embed_punish_2.add_field(name="Duration", value=str(punishment_duration), inline=False)
                 embed_punish_2.add_field(name="Punishment Expires At", value=f"<t:{int(expiration_time.timestamp())}:R>", inline=False)
                 embed_punish_2.add_field(name="Reason", value="Repeated violations of the server's content rules.", inline=False)
@@ -1597,7 +1597,7 @@ async def check_and_apply_punishment(user: discord.Member, guild_id: int, server
                     if log_channel:
                         embed_log = discord.Embed(title="Punishment Applied", color=discord.Color.dark_red(), timestamp=current_time)
                         embed_log.add_field(name="User", value=user.mention, inline=False)
-                        embed_log.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
+                        embed_log.add_field(name="Punishment Role", value=f"{role.mention}", inline=False)
                         embed_log.add_field(name="Duration", value=str(punishment_duration), inline=False)
                         embed_log.add_field(name="Punishment Expires At", value=f"<t:{int(expiration_time.timestamp())}:R>", inline=False)
                         embed_log.add_field(name="Reason", value="Repeated violations of the server's content rules.", inline=False)
@@ -1827,7 +1827,7 @@ async def punishment_checker():
                                 if log_channel:
                                     embed_lift = discord.Embed(title="Punishment Lifted", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
                                     embed_lift.add_field(name="User", value=member.mention, inline=False)
-                                    embed_lift.add_field(name="Punishment Role", value=f"`{role.name}`", inline=False)
+                                    embed_lift.add_field(name="Punishment Role", value=f"{role.mention}", inline=False)
                                     embed_lift.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
                                     embed_lift.add_field(name="Punishment Lifted By", value=f"{bot.user.mention}", inline=False)
                                     embed_lift.add_field(name="Reason", value="Punishment duration has expired.", inline=False)
@@ -2059,7 +2059,7 @@ class TermRemovalApprovalModal(discord.ui.Modal):
                     await db.commit()
 
         await interaction.response.send_message(
-            f"Term '{self.term}' has been {self.action}.",
+            f"Term `{self.term}` has been {self.action}.",
             ephemeral=True
         )
 
@@ -3270,7 +3270,7 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
             if log_channel:
                 embed = discord.Embed(title="Punishment Lifted", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
                 embed.add_field(name="User", value=member.mention, inline=False)
-                embed.add_field(name="Punishment Role", value=f"`{punishment_role.name}`", inline=False)
+                embed.add_field(name="Punishment Role", value=f"{punishment_role.mention}", inline=False)
                 embed.add_field(name="Punishment Lifted At", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
                 embed.add_field(name="Punishment Lifted By", value=f"{interaction.user.mention}", inline=False)
                 embed.add_field(name="Reason", value=reason if reason is not None else "Punishment manually lifted.", inline=False)

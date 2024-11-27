@@ -425,8 +425,14 @@ async def is_emoji_or_sequence(s):
     if not isinstance(s, str) or not s:
         return False
 
-    custom_emoji_pattern = regex.compile(r'^<a?:\w+:\d+>$')
-    if custom_emoji_pattern.match(s):
+    single_custom_emoji_pattern = regex.compile(r'^<a?:\w+:\d+>$')
+    
+    multiple_custom_emoji_pattern = regex.compile(r'^(?:<a?:\w+:\d+>\s*)+$')
+    
+    if single_custom_emoji_pattern.match(s):
+        return True
+    
+    if multiple_custom_emoji_pattern.match(s.strip()):
         return True
 
     emojis_found = emoji.emoji_list(s)

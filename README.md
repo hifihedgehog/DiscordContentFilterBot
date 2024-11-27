@@ -15,6 +15,7 @@ By default, the standard SQLite distribution will not work as this bot specifica
 - **Blacklist and Whitelist Customization**
   - Add your first blacklist and optionally whitelist from a variety of sources.
   - Here are several blacklist sources to get you started. Note you may need to preprocess them if you want to extract their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task.
+    - [zacanger's profane-words](https://github.com/zacanger/profane-words/blob/master/words.json)
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)

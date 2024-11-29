@@ -414,10 +414,82 @@ async def setup_webhook(channel):
     webhook_cache[parent_channel.id] = bot_webhooks[0]
     return bot_webhooks[0]
     
-def escape_markdown(text: str) -> str:
+async def escape_markdown(text: str) -> str:
     markdown_chars = ['\\', '`', '*', '_', '{', '}', '[', ']', '(', ')', '#', '+', '-', '.', '!', '|', '>', '~']
     escape_dict = {ord(char): f"\\{char}" for char in markdown_chars}
     return text.translate(escape_dict)
+
+async def parse_csv(file_content: str) -> list:
+    """Parses a CSV file (single column, no header) into a list of terms."""
+    terms = []
+    reader = csv.reader(file_content.splitlines())
+    for row in reader:
+        if row:
+            term = row[0].strip()
+            if term:
+                terms.append(term)
+    return terms
+
+async def parse_txt(file_content: str) -> list:
+    """Parses a TXT file (one term per line) into a list of terms."""
+    terms = []
+    for line in file_content.splitlines():
+        term = line.strip()
+        if term:
+            terms.append(term)
+    return terms
+
+async def parse_json(file_content: str) -> list:
+    """Parses a JSON file (keys of terms or expressions) into a list of terms."""
+    try:
+        data = json.loads(file_content)
+        if isinstance(data, list):
+            terms = [str(item).strip() for item in data if isinstance(item, str) and item.strip()]
+            return terms
+        else:
+            raise ValueError("JSON content must be an array of terms.")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON file: {e}")
+
+async def split_terms_into_chunks(terms: list, max_length: int = 4000) -> list:
+    """Splits a list of terms into multiple chunks, each not exceeding max_length characters."""
+    chunks = []
+    current_chunk = []
+    current_length = 0
+
+    for term in terms:
+        term_length = len(term)
+        if not current_chunk:
+            additional_length = term_length
+        else:
+            additional_length = 1 + term_length  # '\n' + term
+
+        if term_length > max_length:
+            raise ValueError(f"Term exceeds maximum allowed length ({max_length} characters): {term}")
+
+        if current_length + additional_length > max_length:
+            chunks.append(current_chunk)
+            current_chunk = [term]
+            current_length = term_length
+        else:
+            current_chunk.append(term)
+            current_length += additional_length
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
+    
+async def remove_duplicates(terms: list) -> list:
+    """Removes duplicate terms while preserving order."""
+    seen = set()
+    unique_terms = []
+    for term in terms:
+        normalized_term = term.lower()
+        if normalized_term not in seen:
+            unique_terms.append(term)
+            seen.add(normalized_term)
+    return unique_terms
 
 # Content Pattern Processing
 async def is_emoji_or_sequence(s):
@@ -628,7 +700,7 @@ async def censor_content(content: str, channel: Optional[Union[discord.Thread, d
     blacklists = server_config.get("blacklists", {})
     whitelists = server_config.get("whitelists", {})
     replacement_string = server_config.get("replacement_string", "***")
-    replacement_string = replacement_string if await is_emoji_or_sequence(replacement_string) else escape_markdown(replacement_string)
+    replacement_string = replacement_string if await is_emoji_or_sequence(replacement_string) else await escape_markdown(replacement_string)
     replacement_string = replacement_string_override if replacement_string_override else replacement_string
     normalized_content, index_map = await normalize_text(content)
     exempt_ranges_original = []
@@ -2443,7 +2515,7 @@ async def view_configuration(interaction: discord.Interaction):
     embed_1.add_field(name="Punishment Settings", value=punishment_settings, inline=False)
     
     replacement_string = server_config.get("replacement_string", "***")
-    replacement_string = replacement_string if await is_emoji_or_sequence(replacement_string) else escape_markdown(replacement_string)
+    replacement_string = replacement_string if await is_emoji_or_sequence(replacement_string) else await escape_markdown(replacement_string)
     embed_1.add_field(
         name="Replacement String",
         value=(
@@ -2848,6 +2920,188 @@ async def delete_whitelist(interaction: discord.Interaction, name: str):
         await interaction.response.send_message(f"Deleted whitelist '{name}'.", ephemeral=True)
     else:
         await interaction.response.send_message(f"Whitelist '{name}' not found.", ephemeral=True)
+
+@bot.tree.command(
+    name="import_blacklist",
+    description="Import a blacklist from a file (.csv, .txt, .json)."
+)
+@is_admin()
+@app_commands.describe(
+    file="Upload the file containing the blacklist terms.",
+    name="Optional custom name for the blacklist. Defaults to the file name (with underscores for spaces) without extension."
+)
+async def import_blacklist(interaction: discord.Interaction, file: discord.Attachment, name: Optional[str]):
+    """Imports a blacklist from an uploaded file (.csv, .txt, .json)."""
+    allowed_extensions = ['.csv', '.txt', '.json']
+    filename = file.filename.lower()
+    if not any(filename.endswith(ext) for ext in allowed_extensions):
+        await interaction.response.send_message(f"Unsupported file type. Please upload a `.csv`, `.txt`, or `.json` file.", ephemeral=True)
+        return
+
+    if name:
+        list_name = name.strip()
+    else:
+        list_name = os.path.splitext(file.filename)[0]
+
+    if not list_name:
+        await interaction.response.send_message("Invalid list name derived from the file. Please provide a valid file name or specify a custom name.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
+    try:
+        file_bytes = await file.read()
+        file_content = file_bytes.decode('utf-8')
+    except Exception as e:
+        await interaction.followup.send(f"Failed to read the file: {e}", ephemeral=True)
+        return
+
+    try:
+        if filename.endswith('.csv'):
+            terms = await parse_csv(file_content)
+        elif filename.endswith('.txt'):
+            terms = await parse_txt(file_content)
+        elif filename.endswith('.json'):
+            terms = await parse_json(file_content)
+        else:
+            terms = []
+    except ValueError as ve:
+        await interaction.followup.send(f"Error parsing file: {ve}", ephemeral=True)
+        return
+
+    if not terms:
+        await interaction.followup.send("No valid terms found in the uploaded file.", ephemeral=True)
+        return
+
+    terms = await remove_duplicates(terms)
+
+    try:
+        term_chunks = await split_terms_into_chunks(terms, max_length=4000)
+    except ValueError as ve:
+        await interaction.followup.send(f"Error splitting terms: {ve}", ephemeral=True)
+        return
+
+    guild_id = interaction.guild.id
+    server_config = await load_server_config(guild_id)
+
+    blacklists = server_config.get("blacklists", {})
+
+    if list_name in blacklists:
+        await interaction.followup.send(f"A blacklist named **{list_name}** already exists. Please choose a different name or delete the existing list before importing.", ephemeral=True)
+        return
+
+    imported_list_names = []
+    for i, chunk in enumerate(term_chunks, 1):
+        if len(term_chunks) == 1:
+            key = list_name
+        else:
+            key = f"{list_name} ({i})"
+        blacklists[key] = chunk
+        imported_list_names.append(key)
+
+    server_config["blacklists"] = blacklists
+
+    await save_server_config(guild_id, server_config)
+
+    if len(term_chunks) == 1:
+        confirmation = f"Successfully imported **{len(terms)}** terms into the **blacklists** named **{list_name}**."
+    else:
+        confirmation = f"Successfully imported **{len(terms)}** terms into the **blacklists**, split into {len(term_chunks)} lists:\n"
+        for imported_name in imported_list_names:
+            confirmation += f"- **{imported_name}**\n"
+
+    await interaction.followup.send(confirmation, ephemeral=True)
+
+@bot.tree.command(
+    name="import_whitelist",
+    description="Import a whitelist from a file (.csv, .txt, .json)."
+)
+@is_admin()
+@app_commands.describe(
+    file="Upload the file containing the whitelist terms.",
+    name="Optional custom name for the whitelist. Defaults to the file name (with underscores for spaces) without extension."
+)
+async def import_whitelist(interaction: discord.Interaction, file: discord.Attachment, name: Optional[str]):
+    """Imports a whitelist from an uploaded file (.csv, .txt, .json)."""
+    allowed_extensions = ['.csv', '.txt', '.json']
+    filename = file.filename.lower()
+    if not any(filename.endswith(ext) for ext in allowed_extensions):
+        await interaction.response.send_message(f"Unsupported file type. Please upload a `.csv`, `.txt`, or `.json` file.", ephemeral=True)
+        return
+
+    if name:
+        list_name = name.strip()
+    else:
+        list_name = os.path.splitext(file.filename)[0]
+
+    if not list_name:
+        await interaction.response.send_message("Invalid list name derived from the file. Please provide a valid file name or specify a custom name.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+
+    try:
+        file_bytes = await file.read()
+        file_content = file_bytes.decode('utf-8')
+    except Exception as e:
+        await interaction.followup.send(f"Failed to read the file: {e}", ephemeral=True)
+        return
+
+    try:
+        if filename.endswith('.csv'):
+            terms = await parse_csv(file_content)
+        elif filename.endswith('.txt'):
+            terms = await parse_txt(file_content)
+        elif filename.endswith('.json'):
+            terms = await parse_json(file_content)
+        else:
+            terms = []
+    except ValueError as ve:
+        await interaction.followup.send(f"Error parsing file: {ve}", ephemeral=True)
+        return
+
+    if not terms:
+        await interaction.followup.send("No valid terms found in the uploaded file.", ephemeral=True)
+        return
+
+    terms = await remove_duplicates(terms)
+
+    try:
+        term_chunks = await split_terms_into_chunks(terms, max_length=4000)
+    except ValueError as ve:
+        await interaction.followup.send(f"Error splitting terms: {ve}", ephemeral=True)
+        return
+
+    guild_id = interaction.guild.id
+    server_config = await load_server_config(guild_id)
+
+    whitelists = server_config.get("whitelists", {})
+
+    if list_name in whitelists:
+        await interaction.followup.send(f"A whitelist named **{list_name}** already exists. Please choose a different name or delete the existing list before importing.", ephemeral=True)
+        return
+
+    imported_list_names = []
+    for i, chunk in enumerate(term_chunks, 1):
+        if len(term_chunks) == 1:
+            key = list_name
+        else:
+            key = f"{list_name} ({i})"
+        whitelists[key] = chunk
+        imported_list_names.append(key)
+
+    server_config["whitelists"] = whitelists
+
+    await save_server_config(guild_id, server_config)
+
+    if len(term_chunks) == 1:
+        confirmation = f"Successfully imported **{len(terms)}** terms into the **whitelists** named **{list_name}**."
+    else:
+        confirmation = f"Successfully imported **{len(terms)}** terms into the **whitelists**, split into {len(term_chunks)} lists:\n"
+        for imported_name in imported_list_names:
+            confirmation += f"- **{imported_name}**\n"
+
+    await interaction.followup.send(confirmation, ephemeral=True)
 
 # Commands - Exception Management
 @bot.tree.command(name="add_category_exception")

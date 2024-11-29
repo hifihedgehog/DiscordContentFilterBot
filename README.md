@@ -19,7 +19,8 @@ By default, the standard SQLite distribution will not work as this bot specifica
 
 - **Blacklist and Whitelist Customization**
   - Add your first blacklist and optionally whitelist from a variety of sources.
-  - Here are several blacklist sources to get you started. Note you may need to preprocess them if you want to extract their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task.
+  - You can add them either with the edit functions `/edit_blacklist` and `/edit_whitelist` or `/import_blacklist` and `/import_whitelist`. In the case of `/edit_blacklist` and `/edit_whitelist`, specify the name in the optional name field and then fill in the blank modal form field. In the case of `/import_blacklist` and `/import_whitelist`, provide a .json, .txt, or .csv file with a list of the terms and optionally specify the name of that list in leiu of using the file name. Note that whenever a list is longer than 4000 characters when separated by line endings with one term per line, that list will automatically be split into multiple lists. This is so it can be edited in the edit functions due to Discord limiting modal forms to 4000 characters in length. 
+  - Here are several blacklist sources to get you started. Note you may need to preprocess them if you want to process their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task. 
     - [zacanger's profane-words](https://github.com/zacanger/profane-words/blob/master/words.json)
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
@@ -170,12 +171,14 @@ python content_filter.py
 - `/toggle_display_name_filter` - Toggle name filtering
 
 ### Blacklist Management
+- `/import_blacklist` - Import blacklists from file
 - `/edit_blacklist` - Create/edit blacklists
 - `/quick_add_blacklist` - Quick add terms
 - `/delete_blacklist` - Remove blacklists
 - `/list_blacklists` - View all blacklists
 
 ### Whitelist Management
+- `/import_whitelist` - Import whitelists from file
 - `/edit_whitelist` - Create/edit whitelists
 - `/quick_add_whitelist` - Quick add terms
 - `/delete_whitelist` - Remove whitelists

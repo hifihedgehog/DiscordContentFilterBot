@@ -2542,6 +2542,7 @@ async def view_configuration(interaction: discord.Interaction):
         value=(
             "Manage blacklists to filter specific terms.\n"
             "Use the following commands to configure:\n"
+            "- `/import_blacklist` - Import blacklists from file.\n"
             "- `/edit_blacklist`: Create/edit blacklists.\n"
             "- `/quick_add_blacklist`: Quick add terms.\n"
             "- `/delete_blacklist`: Remove blacklists.\n"
@@ -2555,6 +2556,7 @@ async def view_configuration(interaction: discord.Interaction):
         value=(
             "Manage whitelists to allow specific terms.\n"
             "Use the following commands to configure:\n"
+            "- `/import_whitelist` - Import whitelists from file.\n"
             "- `/edit_whitelist`: Create/edit whitelists.\n"
             "- `/quick_add_whitelist`: Quick add terms.\n"
             "- `/delete_whitelist`: Remove whitelists.\n"

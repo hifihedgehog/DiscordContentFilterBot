@@ -1734,6 +1734,17 @@ async def on_ready():
         for term in all_whitelist_terms:
             await get_whitelist_pattern(term)
         print(f"Loaded server regex cache for '{guild.name}' ({guild.id}).")
+        
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            async with db.execute("""
+                SELECT term, reporter_id FROM term_removal_requests
+                WHERE guild_id = ? AND status = 'pending'
+            """, (guild.id,)) as cursor:
+                async for row in cursor:
+                    term, reporter_id = row
+                    view = TermRemovalApprovalView(guild.id, term, reporter_id)
+                    bot.add_view(view)
+                    print(f"Loaded term removal approval view for term '{term}' in '{guild.name}' ({guild.id}).")
     try:
         await bot.tree.sync()
         print("Commands synced globally.")
@@ -2196,7 +2207,7 @@ class TermRemovalApprovalView(discord.ui.View):
         self.term = term
         self.reporter_id = reporter_id
 
-    @discord.ui.button(label='Approve', style=discord.ButtonStyle.success)
+    @discord.ui.button(label='Approve', style=discord.ButtonStyle.success, custom_id='approve_button')
     async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not (interaction.user.guild_permissions.administrator or await has_term_approver_role(interaction.user)):
             await interaction.response.send_message(
@@ -2214,7 +2225,7 @@ class TermRemovalApprovalView(discord.ui.View):
         )
         await interaction.response.send_modal(modal)
 
-    @discord.ui.button(label='Disapprove', style=discord.ButtonStyle.danger)
+    @discord.ui.button(label='Disapprove', style=discord.ButtonStyle.danger, custom_id='disapprove_button')
     async def disapprove_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not (interaction.user.guild_permissions.administrator or await has_term_approver_role(interaction.user)):
             await interaction.response.send_message(

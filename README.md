@@ -20,14 +20,14 @@ By default, the standard SQLite distribution will not work as this bot specifica
 - **Blacklist and Whitelist Customization**
   - Add your first blacklist and optionally whitelist from a variety of sources.
   - You can add them either with the edit functions `/edit_blacklist` and `/edit_whitelist` or `/import_blacklist` and `/import_whitelist`. In the case of `/edit_blacklist` and `/edit_whitelist`, specify the name in the optional name field and then fill in the blank modal form field. In the case of `/import_blacklist` and `/import_whitelist`, provide a .json, .txt, or .csv file with a list of the terms and optionally specify the name of that list in leiu of using the file name. Note that whenever a list is longer than 4000 characters when separated by line endings with one term per line, that list will automatically be split into multiple lists. This is so it can be edited in the edit functions due to Discord limiting modal forms to 4000 characters in length. 
-  - Here are several blacklist sources to get you started. Note you may need to preprocess them if you want to process their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task. 
+  - Here are several blacklist sources to get you started. Note you may need to extract and format the terms yourself from some of these sources if you want to import their terms in bulk. [NotePad++](https://notepad-plus-plus.org/) is well-suited for this task. 
     - [zacanger's profane-words](https://github.com/zacanger/profane-words/blob/master/words.json)
     - [Robert James Gabriel's google-profanity-words](https://github.com/coffee-and-fun/google-profanity-words/blob/main/data/en.txt)
     - [Rodger Araujo's profanity](https://github.com/rodgeraraujo/profanity/blob/main/src/data/dictionary.ts)
     - [mogade's badwords](https://github.com/mogade/badwords/blob/master/en.txt)
     - [FreeWebHeaders.com](https://www.freewebheaders.com/category/profanity/profanity-word-list/)
   - Create, modify, and delete any number of your own blacklists and whitelists with no limits.
-  - Terms in a blacklist or whitelist can be made up of exact terms, URL-only terms, and regular expressions. Prefix your regular expressions with `re:` and the system automatically detects them as regular expressions. Prefix your URL terms with `url:` and the system will apply them exclusively to URLs. URL terms can be exact terms or regular expressions. A URL is defined as link beginning with `http://`, `https://`, `discord.gg/`, or `discord.com/invite/`. Leave the name parameter blank when executing the blacklist edit command to explore through the current set of blacklists. Specify a new or current list by the blacklist name parameter. The same approach applies to whitelists as well.
+  - Terms in a blacklist or whitelist can be made up of exact terms, URL-only terms, and regular expressions. Prefix your regular expressions with `re:` and the system automatically detects them as regular expressions. You can also use `re:` to do exact matches and not run the special spacing, reversed, and special character checks for a term. Prefix your URL terms with `url:` and the system will apply them exclusively to URLs. URL terms can be exact terms or regular expressions. A URL is defined as a link beginning with `http://`, `https://`, `discord.gg/`, or `discord.com/invite/`. Leave the name parameter blank when executing the blacklist edit command to explore the current set of blacklists. Specify a new or current list by the blacklist name parameter. The same approach applies to whitelists as well.
 
     ![ezgif-1-69ef3929b5](https://github.com/user-attachments/assets/6fa47fa0-99bf-441b-9fc8-95d6083d5391)
 
@@ -264,4 +264,4 @@ For support, please open an issue on GitHub.
 
 ## Donation
 
-If you found this bot at all helpful, in lieu of development contribution, [please consider donating to the Humanitarian Services of The Church of Jesus Christ of Latter-day Saints.](https://philanthropies.churchofjesuschrist.org/humanitarian-services)
+If you found this bot at all helpful, in lieu of donating to the bot's development, [please consider donating to the Humanitarian Services of The Church of Jesus Christ of Latter-day Saints.](https://philanthropies.churchofjesuschrist.org/humanitarian-services)

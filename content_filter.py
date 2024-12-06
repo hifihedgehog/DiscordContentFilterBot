@@ -2159,7 +2159,7 @@ class BlacklistSelectView(discord.ui.View):
     def __init__(self, blacklists):
         super().__init__()
         sorted_blacklist_names = sorted(blacklists.keys(), key=lambda x: x.lower())
-        options = [discord.SelectOption(label=bl_name, description=f"Edit the \"{bl_name}\" blacklist", emoji="📝") for bl_name in sorted_blacklist_names[:25]]
+        options = [discord.SelectOption(label=bl_name[:100], description=f"Edit the \"{bl_name}\" blacklist"[:100], emoji="📝") for bl_name in sorted_blacklist_names[:25]]
         self.add_item(BlacklistSelect(options))
 
 class BlacklistSelect(discord.ui.Select):
@@ -2178,14 +2178,7 @@ class WhitelistSelectView(discord.ui.View):
     def __init__(self, whitelists):
         super().__init__()
         sorted_whitelist_names = sorted(whitelists.keys(), key=lambda x: x.lower())
-        options = [
-            discord.SelectOption(
-                label=wl_name,
-                description=f"Edit the \"{wl_name}\" whitelist",
-                emoji="📝"
-            )
-            for wl_name in sorted_whitelist_names[:25]
-        ]
+        options = [discord.SelectOption(label=wl_name[:100], description=f"Edit the \"{wl_name}\" whitelist"[:100], emoji="📝") for wl_name in sorted_whitelist_names[:25]]
         self.add_item(WhitelistSelect(options))
 
 class WhitelistSelect(discord.ui.Select):

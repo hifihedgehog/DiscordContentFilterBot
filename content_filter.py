@@ -3626,6 +3626,10 @@ async def view_term_request_history(interaction: discord.Interaction):
 )
 async def request_term_removal(interaction: discord.Interaction, term: str):
     """Request removal of a term from the blacklists."""
+    if not interaction.guild:
+        await interaction.response.send_message("Server-only command.", ephemeral=True)
+        return    
+
     guild_id = interaction.guild.id
     user_id = interaction.user.id
     server_config = await load_server_config(guild_id)

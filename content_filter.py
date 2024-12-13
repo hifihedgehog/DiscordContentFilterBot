@@ -145,6 +145,7 @@ async def initialize_database():
                 author_id INTEGER,
                 webhook_id INTEGER,
                 webhook_token TEXT,
+                thread_id INTEGER,
                 PRIMARY KEY (guild_id, message_id)
             )
         """)
@@ -189,13 +190,13 @@ async def initialize_database():
         
         await db.commit()
 
-async def save_censored_message(guild_id, message_id, author_id, webhook_id, webhook_token):
+async def save_censored_message(guild_id, message_id, author_id, webhook_id, webhook_token, thread_id=None):
     """Save information about a censored message to the database."""
     async with aiosqlite.connect(DATABASE_PATH) as db:
         await db.execute("""
-            INSERT OR REPLACE INTO censored_messages 
-            VALUES (?, ?, ?, ?, ?)
-        """, (guild_id, message_id, author_id, webhook_id, webhook_token))
+            INSERT OR REPLACE INTO censored_messages (guild_id, message_id, author_id, webhook_id, webhook_token, thread_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (guild_id, message_id, author_id, webhook_id, webhook_token, thread_id))
         await db.commit()
 
 async def get_censored_message_info(guild_id, message_id):
@@ -1067,21 +1068,20 @@ async def repost_as_user(message: discord.Message, censored_message: str) -> dis
     """Repost censored message via webhook."""
     webhook = await setup_webhook(message.channel)
     author = message.author
-    
-    if isinstance(author, discord.Member):
-        username = author.display_name
-        avatar_url = author.display_avatar.url if author.display_avatar else None
-    else:
-        username = author.name
-        avatar_url = author.display_avatar.url if author.display_avatar else None
+
+    username = author.display_name if isinstance(author, discord.Member) else author.name
+    avatar_url = author.display_avatar.url if author.display_avatar else None
 
     if len(censored_message) > 2000:
         embed = discord.Embed(description=censored_message)
         send_kwargs = {'embed': embed, 'username': username, 'avatar_url': avatar_url, 'wait': True}
     else:
         send_kwargs = {'content': censored_message[:2000], 'username': username, 'avatar_url': avatar_url, 'wait': True}
+
+    thread_id = None
     if isinstance(message.channel, discord.Thread):
         send_kwargs['thread'] = message.channel
+        thread_id = message.channel.id
 
     try:
         bot_message = await webhook.send(**send_kwargs)
@@ -1089,8 +1089,9 @@ async def repost_as_user(message: discord.Message, censored_message: str) -> dis
         print(f"Failed to send censored message via webhook: {e}")
         return
 
-    await save_censored_message(message.guild.id, bot_message.id, message.author.id, webhook.id, webhook.token)
+    await save_censored_message(message.guild.id, bot_message.id, message.author.id, webhook.id, webhook.token, thread_id=thread_id)
     return bot_message
+
 
 # Notification Functions
 async def notify_user_message(message, censored_message, reposted_message, server_config):
@@ -1938,17 +1939,38 @@ async def prune_deleted_messages():
     while not bot.is_closed():
         try:
             async with aiosqlite.connect(DATABASE_PATH) as db:
-                async with db.execute("SELECT guild_id, message_id, webhook_id, webhook_token FROM censored_messages") as cursor:
-                    async for row in cursor:
-                        guild_id, message_id, webhook_id, webhook_token = row
+                async with db.execute("SELECT guild_id, message_id, webhook_id, webhook_token, thread_id FROM censored_messages") as cursor:
+                    async for guild_id, message_id, webhook_id, webhook_token, thread_id in cursor:
                         try:
-                            webhook = await bot.fetch_webhook(webhook_id)
-                            await webhook.fetch_message(message_id)
-                        except discord.NotFound:
-                            await db.execute(
-                                "DELETE FROM censored_messages WHERE guild_id = ? AND message_id = ?",
-                                (guild_id, message_id)
-                            )
+                            webhook = await bot.fetch_webhook(webhook_id)                          
+                            if thread_id:
+                                guild = bot.get_guild(guild_id)
+                                if guild:
+                                    thread = guild.get_channel(thread_id)
+                                    if thread:
+                                        try:
+                                            await webhook.fetch_message(message_id, thread=thread)
+                                            continue
+                                        except discord.NotFound:
+                                            pass
+                                    else:
+                                        pass
+                                else:
+                                    pass
+                                await db.execute(
+                                    "DELETE FROM censored_messages WHERE guild_id = ? AND message_id = ?",
+                                    (guild_id, message_id)
+                                )
+                            else:
+                                try:
+                                    await webhook.fetch_message(message_id)
+                                    continue
+                                except discord.NotFound:
+                                    await db.execute(
+                                        "DELETE FROM censored_messages WHERE guild_id = ? AND message_id = ?",
+                                        (guild_id, message_id)
+                                    )
+
                         except discord.HTTPException as e:
                             print(f"HTTPException checking message {message_id}: {e}")
                 await db.commit()

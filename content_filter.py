@@ -1818,7 +1818,7 @@ async def on_raw_thread_update(payload):
     if not guild:
         return
     try:
-        thread = await guild.get_channel_or_thread(payload.thread_id)
+        thread = guild.get_channel_or_thread(payload.thread_id)
     except discord.NotFound:
         print(f"Thread with ID {payload.thread_id} not found.")
         return

@@ -1818,7 +1818,7 @@ async def on_raw_thread_update(payload):
     if not guild:
         return
     try:
-        thread = await guild.fetch_channel(payload.thread_id)
+        thread = await guild.get_channel_or_thread(payload.thread_id)
     except discord.NotFound:
         print(f"Thread with ID {payload.thread_id} not found.")
         return
@@ -1946,7 +1946,7 @@ async def prune_deleted_messages():
                             if thread_id:
                                 guild = bot.get_guild(guild_id)
                                 if guild:
-                                    thread = guild.get_channel(thread_id)
+                                    thread = guild.get_channel_or_thread(thread_id)
                                     if thread:
                                         try:
                                             await webhook.fetch_message(message_id, thread=thread)

@@ -1403,7 +1403,7 @@ async def log_censored_message(message, censored_message, reposted_message, serv
     if not log_channel_id:
         return
 
-    log_channel = message.guild.get_channel_or_thread(log_channel_id)
+    log_channel = await message.guild.fetch_channel(log_channel_id)
     if not log_channel:
         return
     
@@ -1460,7 +1460,7 @@ async def log_censored_thread_title(thread, censored_title, server_config):
     if not log_channel_id:
         return
 
-    log_channel = thread.guild.get_channel_or_thread(log_channel_id)
+    log_channel = await thread.guild.fetch_channel(log_channel_id)
     if not log_channel:
         return
 
@@ -1503,7 +1503,7 @@ async def log_removed_reaction(user, emoji, message, server_config):
     if not log_channel_id:
         return
 
-    log_channel = message.guild.get_channel_or_thread(log_channel_id)
+    log_channel = await message.guild.fetch_channel(log_channel_id)
     if not log_channel:
         return
 
@@ -1541,7 +1541,7 @@ async def log_censored_display_name(member, censored_display_name, server_config
     if not log_channel_id:
         return
 
-    log_channel = member.guild.get_channel_or_thread(log_channel_id)
+    log_channel = await member.guild.fetch_channel(log_channel_id)
     if not log_channel:
         return
 
@@ -1583,7 +1583,7 @@ async def log_scan_deletion(message: discord.Message, censored_message: str, ser
     if not log_channel_id:
         return
 
-    log_channel = message.guild.get_channel_or_thread(log_channel_id)
+    log_channel = await message.guild.fetch_channel(log_channel_id)
     if not log_channel:
         return
     
@@ -1672,7 +1672,7 @@ async def check_and_apply_punishment(user: discord.Member, guild_id: int, server
 
                 log_channel_id = server_config.get("log_channel_id")
                 if log_channel_id:
-                    log_channel = user.guild.get_channel_or_thread(log_channel_id)
+                    log_channel = await user.guild.fetch_channel(log_channel_id)
                     if log_channel:
                         embed_log = discord.Embed(title="Punishment Applied", color=discord.Color.dark_red(), timestamp=current_time)
                         embed_log.add_field(name="User", value=user.mention, inline=False)
@@ -1774,7 +1774,7 @@ async def on_message(message):
 @bot.event
 async def on_raw_message_edit(payload):
     """Handle message edits."""
-    channel = bot.get_channel(payload.channel_id)
+    channel = await bot.fetch_channel(payload.channel_id)
     if not isinstance(channel, (discord.TextChannel, discord.ForumChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
         return    
     try:
@@ -1818,7 +1818,7 @@ async def on_raw_thread_update(payload):
     if not guild:
         return
     try:
-        thread = guild.get_channel_or_thread(payload.thread_id)
+        thread = await guild.fetch_channel(payload.thread_id)
     except discord.NotFound:
         print(f"Thread with ID {payload.thread_id} not found.")
         return
@@ -1849,7 +1849,7 @@ async def on_raw_reaction_add(payload):
     user = guild.get_member(payload.user_id)
     if not user:
         return
-    channel = bot.get_channel(payload.channel_id)
+    channel = await bot.fetch_channel(payload.channel_id)
     if not channel:
         return
     try:
@@ -1913,7 +1913,7 @@ async def punishment_checker():
                             server_config = await load_server_config(guild_id)
                             log_channel_id = server_config["log_channel_id"]
                             if log_channel_id:
-                                log_channel = guild.get_channel_or_thread(log_channel_id)
+                                log_channel = await guild.fetch_channel(log_channel_id)
                                 if log_channel:
                                     embed_lift = discord.Embed(title="Punishment Lifted", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
                                     embed_lift.add_field(name="User", value=member.mention, inline=False)
@@ -1946,7 +1946,7 @@ async def prune_deleted_messages():
                             if thread_id:
                                 guild = bot.get_guild(guild_id)
                                 if guild:
-                                    thread = guild.get_channel_or_thread(thread_id)
+                                    thread = await guild.fetch_channel(thread_id)
                                     if thread:
                                         try:
                                             await webhook.fetch_message(message_id, thread=thread)
@@ -2130,7 +2130,7 @@ class TermRemovalApprovalModal(discord.ui.Modal):
         server_config = await load_server_config(self.guild_id)
         log_channel_id = server_config.get("log_channel_id")
         if log_channel_id:
-            log_channel = guild.get_channel_or_thread(log_channel_id)
+            log_channel = await guild.fetch_channel(log_channel_id)
             if log_channel:
                 async with aiosqlite.connect(DATABASE_PATH) as db:
                     async with db.execute("""
@@ -2490,7 +2490,7 @@ async def view_configuration(interaction: discord.Interaction):
     )
 
     log_channel_id = server_config.get("log_channel_id")
-    log_channel = interaction.guild.get_channel_or_thread(log_channel_id) if log_channel_id else None
+    log_channel = await interaction.guild.fetch_channel(log_channel_id) if log_channel_id else None
     embed_1.add_field(
         name="Log Channel",
         value=(
@@ -2596,7 +2596,7 @@ async def view_configuration(interaction: discord.Interaction):
     global_exceptions = server_config.get("global_exceptions", {"categories": [], "channels": [], "roles": []})
     categories_list = []
     for category_id in global_exceptions.get("categories", []):
-        category = interaction.guild.get_channel(category_id)
+        category = await interaction.guild.fetch_channel(category_id)
         if category:
             categories_list.append(category.name)
         else:
@@ -2604,7 +2604,7 @@ async def view_configuration(interaction: discord.Interaction):
 
     channels_list = []
     for channel_id in global_exceptions.get("channels", []):
-        channel = interaction.guild.get_channel_or_thread(channel_id)
+        channel = await interaction.guild.fetch_channel(channel_id)
         if channel:
             if isinstance(channel, discord.Thread):
                 parent = channel.parent
@@ -2664,10 +2664,10 @@ async def view_configuration(interaction: discord.Interaction):
             for entity_id, blacklists in exception_dict.items():
                 entity_name = "Unknown"
                 if exception_type == "categories":
-                    entity = interaction.guild.get_channel(int(entity_id))
+                    entity = await interaction.guild.fetch_channel(int(entity_id))
                     entity_name = entity.name if entity else f"ID: {entity_id}"
                 elif exception_type == "channels":
-                    entity = interaction.guild.get_channel_or_thread(int(entity_id))
+                    entity = await interaction.guild.fetch_channel(int(entity_id))
                     if entity:
                         if isinstance(entity, discord.Thread):
                             parent = entity.parent
@@ -3445,12 +3445,12 @@ async def list_exceptions(interaction: discord.Interaction):
     exceptions = server_config.get("exceptions", {})
 
     categories = [
-        f"{interaction.guild.get_channel_or_thread(category_id).mention if interaction.guild.get_channel_or_thread(category_id)
+        f"{await interaction.guild.fetch_channel(category_id).mention if await interaction.guild.fetch_channel(category_id)
         else f'ID: {category_id}'} - {', '.join(blacklist_names)}"
         for category_id, blacklist_names in exceptions.get("categories", {}).items()
     ]
     channels = [
-        f"{interaction.guild.get_channel_or_thread(channel_id).mention if interaction.guild.get_channel_or_thread(channel_id)
+        f"{await interaction.guild.fetch_channel(channel_id).mention if await interaction.guild.fetch_channel(channel_id)
         else f'ID: {channel_id}'} - {', '.join(blacklist_names)}"
         for channel_id, blacklist_names in exceptions.get("channels", {}).items()
     ]
@@ -3476,12 +3476,12 @@ async def list_global_exceptions(interaction: discord.Interaction):
     global_exceptions = server_config.get("global_exceptions", {})
     
     categories = [
-        interaction.guild.get_channel_or_thread(category_id).mention if isinstance(interaction.guild.get_channel_or_thread(category_id), discord.CategoryChannel)
+        await interaction.guild.fetch_channel(category_id).mention if isinstance(await interaction.guild.fetch_channel(category_id), discord.CategoryChannel)
         else f"ID: {category_id}" 
         for category_id in global_exceptions.get("categories", [])
     ]
     channels = [
-        interaction.guild.get_channel_or_thread(channel_id).mention if interaction.guild.get_channel_or_thread(channel_id) 
+        await interaction.guild.fetch_channel(channel_id).mention if await interaction.guild.fetch_channel(channel_id) 
         else f"ID: {channel_id}" 
         for channel_id in global_exceptions.get("channels", [])
     ]
@@ -3554,7 +3554,7 @@ async def lift_punishment(interaction: discord.Interaction, member: discord.Memb
 
         log_channel_id = server_config.get("log_channel_id")
         if log_channel_id:
-            log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
+            log_channel = await interaction.guild.fetch_channel(log_channel_id)
             if log_channel:
                 embed = discord.Embed(title="Punishment Lifted", color=discord.Color.green(), timestamp=datetime.now(timezone.utc))
                 embed.add_field(name="User", value=member.mention, inline=False)
@@ -3671,7 +3671,7 @@ async def request_term_removal(interaction: discord.Interaction, term: str):
         await interaction.response.send_message("Log channel is not configured. Please contact an administrator.", ephemeral=True)
         return
 
-    log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
+    log_channel = await interaction.guild.fetch_channel(log_channel_id)
     if not log_channel:
         await interaction.response.send_message("Log channel not found. Please contact an administrator.", ephemeral=True)
         return

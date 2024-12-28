@@ -1,7 +1,7 @@
 """
 Discord Content Filter Bot
 -------------------------
-A comprehensive content moderation bot supporting blacklists, whitelists,
+A comprehensive content censoring bot supporting blacklists, whitelists,
 automated punishments, and extensive filtering capabilities.
 
 Author: Hifihedgehog
@@ -1823,20 +1823,21 @@ async def on_raw_thread_update(payload):
         print(f"Thread with ID {payload.thread_id} not found.")
         return
 
-    server_config = await load_server_config(thread.guild.id)
-    replacement_string = server_config.get("replacement_string", "***")
-    replacement_string = replacement_string if len(replacement_string) <= 10 else "***"
-    censored_title = await censor_content(thread.name, thread, thread.owner, server_config, replacement_string)
-    censored_title = censored_title[:100]
-    if censored_title != thread.name:
-        try:
-            if thread.owner:
-                await notify_user_thread_title(thread, censored_title, server_config)
-            await log_censored_thread_title(thread, censored_title, server_config)
-            await thread.edit(name=censored_title.replace("\\", ""))
-            await check_and_apply_punishment(thread.owner, thread.guild.id, server_config)
-        except (discord.Forbidden, discord.HTTPException) as e:
-            print(f"Error editing thread title: {e}")
+    if thread:
+        server_config = await load_server_config(thread.guild.id)
+        replacement_string = server_config.get("replacement_string", "***")
+        replacement_string = replacement_string if len(replacement_string) <= 10 else "***"
+        censored_title = await censor_content(thread.name, thread, thread.owner, server_config, replacement_string)
+        censored_title = censored_title[:100]
+        if censored_title != thread.name:
+            try:
+                if thread.owner:
+                    await notify_user_thread_title(thread, censored_title, server_config)
+                await log_censored_thread_title(thread, censored_title, server_config)
+                await thread.edit(name=censored_title.replace("\\", ""))
+                await check_and_apply_punishment(thread.owner, thread.guild.id, server_config)
+            except (discord.Forbidden, discord.HTTPException) as e:
+                print(f"Error editing thread title: {e}")
     
 @bot.event
 async def on_raw_reaction_add(payload):

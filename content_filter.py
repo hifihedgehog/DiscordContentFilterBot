@@ -1713,9 +1713,6 @@ async def on_ready():
     asyncio.create_task(punishment_checker())
     print("Punishment checker started.")
     
-    asyncio.create_task(prune_deleted_messages())
-    print("Deleted message pruner started.")
-    
     asyncio.create_task(message_deletion_worker())
     print("Message deletion worker started.")
     
@@ -1770,6 +1767,17 @@ async def on_message(message):
             return
 
     await bot.process_commands(message)
+    
+@bot.event
+async def on_raw_message_delete(payload):
+    if not payload.guild_id:
+        return
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "DELETE FROM censored_messages WHERE guild_id = ? AND message_id = ?",
+            (payload.guild_id, payload.message_id)
+        )
+        await db.commit()
 
 @bot.event
 async def on_raw_message_edit(payload):
@@ -1932,51 +1940,6 @@ async def punishment_checker():
                 await remove_punishment(guild_id, user_id, role_id)
         except Exception as e:
             print(f"Error in punishment_checker: {e}")
-        await asyncio.sleep(60)
-
-async def prune_deleted_messages():
-    """Remove records of deleted messages."""
-    await bot.wait_until_ready()
-    while not bot.is_closed():
-        try:
-            async with aiosqlite.connect(DATABASE_PATH) as db:
-                async with db.execute("SELECT guild_id, message_id, webhook_id, webhook_token, thread_id FROM censored_messages") as cursor:
-                    async for guild_id, message_id, webhook_id, webhook_token, thread_id in cursor:
-                        try:
-                            webhook = await bot.fetch_webhook(webhook_id)                          
-                            if thread_id:
-                                guild = bot.get_guild(guild_id)
-                                if guild:
-                                    thread = guild.get_channel_or_thread(thread_id)
-                                    if thread:
-                                        try:
-                                            await webhook.fetch_message(message_id, thread=thread)
-                                            continue
-                                        except discord.NotFound:
-                                            pass
-                                    else:
-                                        pass
-                                else:
-                                    pass
-                                await db.execute(
-                                    "DELETE FROM censored_messages WHERE guild_id = ? AND message_id = ?",
-                                    (guild_id, message_id)
-                                )
-                            else:
-                                try:
-                                    await webhook.fetch_message(message_id)
-                                    continue
-                                except discord.NotFound:
-                                    await db.execute(
-                                        "DELETE FROM censored_messages WHERE guild_id = ? AND message_id = ?",
-                                        (guild_id, message_id)
-                                    )
-
-                        except discord.HTTPException as e:
-                            print(f"HTTPException checking message {message_id}: {e}")
-                await db.commit()
-        except Exception as e:
-            print(f"Error in prune_deleted_messages: {e}")
         await asyncio.sleep(60)
         
 async def message_deletion_worker():

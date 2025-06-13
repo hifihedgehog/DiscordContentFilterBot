@@ -89,6 +89,20 @@ def is_moderator():
         )
 
     return app_commands.check(predicate)
+    
+async def user_is_moderator(interaction: discord.Interaction) -> bool:
+    """Check if the user has moderator privileges."""
+    guild = interaction.guild
+    if not guild:
+        return False
+    member = interaction.user
+    if not isinstance(member, discord.Member):
+        return False
+    if member.guild_permissions.administrator:
+        return True
+    server_config = await load_server_config(guild.id)
+    moderator_role_id = server_config.get("moderator_role_id")
+    return moderator_role_id and any(role.id == moderator_role_id for role in member.roles)
 
 def is_term_approver():
     async def predicate(interaction: discord.Interaction):
@@ -3715,7 +3729,7 @@ async def edit_censored_message(interaction: discord.Interaction, message: disco
         await interaction.response.send_message("Cannot edit this message.", ephemeral=True)
         return
 
-    if not (interaction.user.id == message_info["author_id"] or is_moderator()):
+    if not (interaction.user.id == message_info["author_id"] or await user_is_moderator(interaction)):
         await interaction.response.send_message("Unauthorized to edit.", ephemeral=True)
         return
 
@@ -3734,7 +3748,7 @@ async def delete_censored_message(interaction: discord.Interaction, message: dis
         await interaction.response.send_message("Cannot delete this message.", ephemeral=True)
         return
 
-    if not (interaction.user.id == message_info["author_id"] or is_moderator()):
+    if not (interaction.user.id == message_info["author_id"] or await user_is_moderator(interaction)):
         await interaction.response.send_message("Unauthorized to delete.", ephemeral=True)
         return
 

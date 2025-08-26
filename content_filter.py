@@ -40,7 +40,7 @@ MARKDOWN_MARKERS = ['```', '***', '**', '*', '__', '___', '~~', '`', '||']
 MARKDOWN_MARKERS.sort(key=lambda x: -len(x))
 
 # URL Regex Pattern
-URL_REGEX = r'\b(?:https?://[^\s]+|(?:discord\.gg/|discord\.com/invite/)[^\s]+)\b'
+URL_REGEX = r'\b(?:https?://[^\s]+|(?:discord\.gg/|discord\.com/invite/|discordapp\.com/invite/)[^\s]+)\b'
 
 # Global Caches
 character_map = {}

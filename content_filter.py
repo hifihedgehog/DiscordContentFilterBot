@@ -54,7 +54,7 @@ reaction_removal_queue = Queue()
 
 # Bot Setup with Required Intents
 intents = discord.Intents.all()
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=intents, status=discord.Status.invisible)
 
 # Permission Check Decorators
 def is_admin():

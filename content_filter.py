@@ -2691,8 +2691,9 @@ async def view_configuration(interaction: discord.Interaction):
         value=(
             "Tools for moderation tasks.\n"
             "Use the following commands:\n"
-            "- `/scan_last_messages`: Scan recent messages.\n"
+            "- `/delete_user_censored_messages`: Deletes filtered messages of specific user.\n"
             "- `/lift_punishment`: Remove punishments.\n"
+            "- `/scan_last_messages`: Scan recent messages.\n"
             "- `/view_term_request_history`: View and manage term requests."
         ),
         inline=False
@@ -3477,6 +3478,82 @@ async def list_global_exceptions(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Commands - Moderation
+@bot.tree.command(name="delete_user_censored_messages")
+@app_commands.describe(
+    user="The user whose censored messages to delete",
+    user_id="The ID of the user whose censored messages to delete"
+)
+@is_moderator()
+async def delete_user_censored_messages(interaction: discord.Interaction, user: Optional[discord.User] = None, user_id: Optional[str] = None):
+    """Delete all bot-reposted censored messages for a specific user or user ID."""
+    await interaction.response.defer(ephemeral=True)
+    
+    # Ensure at least one parameter is provided
+    if not user and not user_id:
+        await interaction.followup.send("Please provide either a user or a user ID.", ephemeral=True)
+        return
+    
+    # Determine the target user ID
+    target_user_id = user.id if user else int(user_id) if user_id else None
+    if not target_user_id:
+        await interaction.followup.send("Invalid user or user ID provided.", ephemeral=True)
+        return
+    
+    # Fetch user for display purposes, if available
+    target_user = user or interaction.guild.get_member(target_user_id) or await bot.fetch_user(target_user_id) if target_user_id else None
+    display_name = target_user.mention if target_user else f"User ID {target_user_id}"
+    
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        async with db.execute("""
+            SELECT message_id, webhook_id, webhook_token, thread_id 
+            FROM censored_messages 
+            WHERE guild_id = ? AND author_id = ?
+        """, (interaction.guild.id, target_user_id)) as cursor:
+            rows = await cursor.fetchall()
+    
+    if not rows:
+        await interaction.followup.send(f"No censored messages found for {display_name}.", ephemeral=True)
+        return
+    
+    deleted_count = 0
+    for row in rows:
+        message_id, webhook_id, webhook_token, thread_id = row
+        try:
+            webhook = await bot.fetch_webhook(webhook_id)
+            thread = interaction.guild.get_thread(thread_id) if thread_id else None
+            await webhook.delete_message(message_id, thread=thread)
+            deleted_count += 1
+        except discord.NotFound:
+            pass  # Message already deleted
+        except discord.Forbidden:
+            await interaction.followup.send("Insufficient permissions to delete some messages.", ephemeral=True)
+            return
+        except discord.HTTPException as e:
+            await interaction.followup.send(f"Failed to delete a message: {e}", ephemeral=True)
+            return
+        
+        # Remove from database
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute("""
+                DELETE FROM censored_messages 
+                WHERE guild_id = ? AND message_id = ?
+            """, (interaction.guild.id, message_id))
+            await db.commit()
+    
+    # Log the action
+    server_config = await load_server_config(interaction.guild.id)
+    log_channel_id = server_config.get("log_channel_id")
+    if log_channel_id:
+        log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
+        if log_channel:
+            embed = discord.Embed(title="User Censored Messages Deleted", color=discord.Color.orange(), timestamp=datetime.now(timezone.utc))
+            embed.add_field(name="User", value=display_name, inline=False)
+            embed.add_field(name="Deleted By", value=interaction.user.mention, inline=False)
+            embed.add_field(name="Messages Deleted", value=str(deleted_count), inline=False)
+            await log_channel.send(embed=embed)
+    
+    await interaction.followup.send(f"Deleted {deleted_count} censored messages for {display_name}.", ephemeral=True)
+
 @bot.tree.command(name="lift_punishment")
 @is_moderator()
 @app_commands.describe(

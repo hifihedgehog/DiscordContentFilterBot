@@ -265,3 +265,4 @@ For support, please open an issue on GitHub.
 ## Donation
 
 If you found this bot at all helpful, in lieu of donating to the bot's development, [please consider donating to the Humanitarian Services of The Church of Jesus Christ of Latter-day Saints.](https://philanthropies.churchofjesuschrist.org/humanitarian-services)
+

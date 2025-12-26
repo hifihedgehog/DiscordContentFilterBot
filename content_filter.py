@@ -126,15 +126,20 @@ async def has_term_approver_role(member: discord.Member) -> bool:
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     """Global error handler for application commands."""
     if isinstance(error, app_commands.CheckFailure):
-        await interaction.response.send_message(
-            "You do not have permission to use this command.",
-            ephemeral=True
-        )
+        content = "You do not have permission to use this command."
     else:
-        await interaction.response.send_message(
-            "An unexpected error occurred. Please contact an administrator.",
-            ephemeral=True
-        )
+        content = "An unexpected error occurred. Please contact an administrator."
+        # Optional: log the full traceback for debugging
+        import traceback
+        traceback.print_exc()
+
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(content, ephemeral=True)
+        else:
+            await interaction.response.send_message(content, ephemeral=True)
+    except:
+        pass  # Silently ignore if we can't send an error message
 
 # Database Functions
 async def initialize_database():
@@ -3487,72 +3492,110 @@ async def list_global_exceptions(interaction: discord.Interaction):
 async def delete_user_censored_messages(interaction: discord.Interaction, user: Optional[discord.User] = None, user_id: Optional[str] = None):
     """Delete all bot-reposted censored messages for a specific user or user ID."""
     await interaction.response.defer(ephemeral=True)
-    
-    # Ensure at least one parameter is provided
+
+    # Input validation
+    if user and user_id:
+        await interaction.followup.send("Please provide either a user or a user ID, not both.", ephemeral=True)
+        return
+
     if not user and not user_id:
         await interaction.followup.send("Please provide either a user or a user ID.", ephemeral=True)
         return
-    
-    # Determine the target user ID
-    target_user_id = user.id if user else int(user_id) if user_id else None
-    if not target_user_id:
-        await interaction.followup.send("Invalid user or user ID provided.", ephemeral=True)
-        return
-    
-    # Fetch user for display purposes, if available
-    target_user = user or interaction.guild.get_member(target_user_id) or await bot.fetch_user(target_user_id) if target_user_id else None
+
+    # Get target_user_id safely
+    if user_id:
+        try:
+            target_user_id = int(user_id)
+        except ValueError:
+            await interaction.followup.send("Invalid user ID format.", ephemeral=True)
+            return
+    else:
+        target_user_id = user.id
+
+    # Try to get a nice display name (handles users no longer in server or deleted accounts)
+    try:
+        target_user = user or interaction.guild.get_member(target_user_id) or await bot.fetch_user(target_user_id)
+    except discord.NotFound:
+        target_user = None
+
     display_name = target_user.mention if target_user else f"User ID {target_user_id}"
-    
+
+    # Fetch censored message rows
     async with aiosqlite.connect(DATABASE_PATH) as db:
         async with db.execute("""
-            SELECT message_id, webhook_id, webhook_token, thread_id 
-            FROM censored_messages 
+            SELECT message_id, webhook_id, webhook_token, thread_id
+            FROM censored_messages
             WHERE guild_id = ? AND author_id = ?
         """, (interaction.guild.id, target_user_id)) as cursor:
             rows = await cursor.fetchall()
-    
+
     if not rows:
         await interaction.followup.send(f"No censored messages found for {display_name}.", ephemeral=True)
         return
-    
+
     deleted_count = 0
     for row in rows:
         message_id, webhook_id, webhook_token, thread_id = row
-        try:
-            webhook = await bot.fetch_webhook(webhook_id)
-            thread = interaction.guild.get_thread(thread_id) if thread_id else None
-            await webhook.delete_message(message_id, thread=thread)
+        deleted = False
+
+        # Only attempt deletion if we have a valid webhook_id
+        if webhook_id is not None:
+            try:
+                webhook = await bot.fetch_webhook(webhook_id)
+
+                # Attempt to fetch the thread object only if we have a thread_id
+                thread = None
+                if thread_id:
+                    thread = interaction.guild.get_thread(thread_id)
+
+                # Build kwargs: only include thread if we successfully fetched it
+                delete_kwargs = {'thread': thread} if thread else {}
+
+                await webhook.delete_message(message_id, **delete_kwargs)
+                deleted = True
+            except discord.NotFound:
+                # Message, webhook, or thread no longer exists — treat as successfully "deleted"
+                deleted = True
+            except discord.Forbidden:
+                await interaction.followup.send("Insufficient permissions to delete some messages.", ephemeral=True)
+                return
+            except discord.HTTPException as e:
+                print(f"Error deleting message {message_id}: {e}")  # Log for debugging
+                # Continue trying other messages
+
+        if deleted:
             deleted_count += 1
-        except discord.NotFound:
-            pass  # Message already deleted
-        except discord.Forbidden:
-            await interaction.followup.send("Insufficient permissions to delete some messages.", ephemeral=True)
-            return
-        except discord.HTTPException as e:
-            await interaction.followup.send(f"Failed to delete a message: {e}", ephemeral=True)
-            return
-        
-        # Remove from database
+
+        # Always clean up the database row (even if deletion failed or was skipped)
         async with aiosqlite.connect(DATABASE_PATH) as db:
             await db.execute("""
-                DELETE FROM censored_messages 
+                DELETE FROM censored_messages
                 WHERE guild_id = ? AND message_id = ?
             """, (interaction.guild.id, message_id))
             await db.commit()
-    
-    # Log the action
+
+    # Logging
     server_config = await load_server_config(interaction.guild.id)
     log_channel_id = server_config.get("log_channel_id")
     if log_channel_id:
         log_channel = interaction.guild.get_channel_or_thread(log_channel_id)
         if log_channel:
-            embed = discord.Embed(title="User Censored Messages Deleted", color=discord.Color.orange(), timestamp=datetime.now(timezone.utc))
+            embed = discord.Embed(
+                title="User Censored Messages Deleted",
+                color=discord.Color.orange(),
+                timestamp=datetime.now(timezone.utc)
+            )
             embed.add_field(name="User", value=display_name, inline=False)
             embed.add_field(name="Deleted By", value=interaction.user.mention, inline=False)
             embed.add_field(name="Messages Deleted", value=str(deleted_count), inline=False)
             await log_channel.send(embed=embed)
-    
-    await interaction.followup.send(f"Deleted {deleted_count} censored messages for {display_name}.", ephemeral=True)
+
+    await interaction.followup.send(
+        f"Successfully processed censored messages for {display_name}.\n"
+        f"Deleted: {deleted_count} reposted message(s).\n"
+        f"All matching database entries have been cleaned up.",
+        ephemeral=True
+    )
 
 @bot.tree.command(name="lift_punishment")
 @is_moderator()

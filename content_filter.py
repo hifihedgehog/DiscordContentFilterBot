@@ -15,7 +15,6 @@ import asyncio
 import discord
 import discord.utils
 import emoji
-import io
 import json
 import os
 import regex

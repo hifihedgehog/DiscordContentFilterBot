@@ -184,6 +184,11 @@ python content_filter.py
 - `/delete_whitelist` - Remove whitelists
 - `/list_whitelists` - View all whitelists
 
+### File Extension Blocking Management
+- `/add_blocked_extension` - Add a file extension to the block list (e.g. `exe`)
+- `/remove_blocked_extension` - Remove a file extension from the block list
+- `/list_blocked_extensions` - View all currently blocked file extensions
+
 ### Exception Management
 - `/add_global_category_exception` - Add global category exceptions
 - `/remove_global_category_exception` - Remove global category exceptions
@@ -207,8 +212,8 @@ python content_filter.py
 
 ### User
 - `/request_term_removal` - Request removal of a term from blacklists
-- Context menu - `Edit Censored Message` - Edit a censored message
-- Context menu - `Delete Censored Message` - Delete a censored message
+- Context menu → **Edit Censored Message** - Edit a censored message
+- Context menu → **Delete Censored Message** - Delete a censored message
   
 ## Configuration
 
@@ -242,7 +247,8 @@ The bot uses a JSON-based configuration system with the following main component
 		"microseconds": 0
 	},
 	"dm_notification": "Your content was modified because of inappropriate content or a false positive. Note that you can always edit and delete your censored messages from the context menu under *Apps→Edit Censored Message* and *Apps→Delete Censored Message*. If you believe this censor to be in error, please report the erroneous term(s) with the slash command `/request_term_removal`. We greatly appreciate users who report false positives that should be whitelisted.\n\n Note that if you repeatedly try to circumvent a censor including false positives, after {max_violations} attempt(s) in {time_window}, you will be automatically muted for the period of {punishment_duration}. Outside of the system's automated punishment, moderators will never manually punish a user for a false positive. Thank you for your understanding.",
-	"replacement_string": "***"
+	"replacement_string": "***",
+	"blocked_extensions": []
 }
 ```
 

@@ -5,7 +5,7 @@ A comprehensive content censoring bot supporting blacklists, whitelists,
 automated punishments, and extensive filtering capabilities.
 
 Author: Hifihedgehog
-Version: 1.0.0
+Version: 2.0.0
 License: MIT
 """
 
@@ -342,6 +342,7 @@ async def load_server_config(guild_id: int) -> dict:
         "moderator_role_id": None,
         "term_approver_role_id": None,
         "replacement_string": default_replacement_string,
+        "blocked_extensions": [],
     }
     server_config_cache[guild_id] = default_config
     return default_config
@@ -363,6 +364,8 @@ async def save_server_config(guild_id: int, config: dict):
     for key in ["categories", "channels", "roles"]:
         config_to_save["global_exceptions"][key] = sorted(map(int, config_to_save["global_exceptions"].get(key, [])))
         config_to_save["exceptions"][key] = {int(k): v for k, v in sorted(config_to_save["exceptions"].get(key, {}).items())}
+    config_to_save.setdefault("blocked_extensions", [])
+    config_to_save["blocked_extensions"] = sorted(config_to_save.get("blocked_extensions", []))
 
     os.makedirs(CONFIG_DIR, exist_ok=True)
     config_path = os.path.join(CONFIG_DIR, f"{guild_id}.json")
@@ -1085,6 +1088,8 @@ async def send_long_message(interaction: discord.Interaction, message: str, emph
 
 async def repost_as_user(message: discord.Message, censored_message: str) -> discord.Message:
     """Repost censored message via webhook."""
+    if not censored_message.strip():
+        return None
     webhook = await setup_webhook(message.channel)
     author = message.author
 
@@ -1113,7 +1118,7 @@ async def repost_as_user(message: discord.Message, censored_message: str) -> dis
 
 
 # Notification Functions
-async def notify_user_message(message, censored_message, reposted_message, server_config):
+async def notify_user_message(message, censored_message, reposted_message, server_config, removed_attachments, blocked_exts):
     """Notify user about message censorship."""
     triggered_blacklists = []
     spoilered_content = await apply_spoilers(message.content, message.channel, message.author, server_config)
@@ -1144,7 +1149,8 @@ async def notify_user_message(message, censored_message, reposted_message, serve
     embed_1.add_field(name="", value=value, inline=False)
     embeds.append(embed_1)
     
-    embed_2 = discord.Embed(title="Message Censored", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+    title = "Message Removed" if not reposted_message else "Message Censored"
+    embed_2 = discord.Embed(title=title, color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
     
     if len(spoilered_content) > 1024:
         embed_2.add_field(name="Your Message With Blocked Terms Hidden (Truncated)", value=spoilered_content[:1024], inline=False)
@@ -1166,9 +1172,20 @@ async def notify_user_message(message, censored_message, reposted_message, serve
         embed_2.add_field(name="Blocked Terms", 
                        value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
+                       
+    if removed_attachments:
+        removed_names = "\n".join(att.filename for att in removed_attachments)
+        embed_2.add_field(name="Removed Attachments", value=removed_names or "None", inline=False)
+        if blocked_exts:
+            ext_list = ", ".join(f".{e}" for e in sorted(blocked_exts))
+            embed_2.add_field(name="Prohibited Extensions", value=ext_list, inline=False)
 
     embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed_2.add_field(name="Message Link", value=f"[Go to Message]({reposted_message.jump_url})", inline=False)
+    
+    if reposted_message:
+        embed_2.add_field(name="Message Link", value=f"[Go to Message]({reposted_message.jump_url})", inline=False)
+    else:
+        embed_2.add_field(name="Original Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
     embeds.append(embed_2)
     
     try:
@@ -1337,7 +1354,7 @@ async def notify_user_display_name(member, censored_display_name, server_config)
     except discord.Forbidden:
         pass
 
-async def notify_user_scan_deletion(message: discord.Message, censored_message: str, server_config: dict):
+async def notify_user_scan_deletion(message: discord.Message, censored_message: str, server_config: dict, removed_attachments: List[discord.Attachment] = [], blocked_exts: set = set()):
     """Notify user about message deletion from channel scan."""
     triggered_blacklists = []
     spoilered_content = await apply_spoilers(message.content, message.channel, message.author, server_config)
@@ -1353,19 +1370,21 @@ async def notify_user_scan_deletion(message: discord.Message, censored_message: 
     embeds = []
     
     embed_1 = discord.Embed(title=f"{message.guild.name} Discord Server Content Filter Notification", color=discord.Color.red())
-    value = server_config.get("dm_notification", "Your message was removed because it contains blacklisted content.")
+    base_text = server_config.get("dm_notification", "Your message was removed because it contains blacklisted content.")
     punishments = server_config.get("punishments")
     max_violations = punishments.get("max_violations")
     time_window = punishments.get("time_window")
     punishment_duration = punishments.get("punishment_duration")
     time_window_str = await format_timedelta(time_window)
     punishment_duration_str = await format_timedelta(punishment_duration)
-    value = value.format(
+    notification_text = base_text.format(
         max_violations=max_violations,
         time_window=time_window_str,
         punishment_duration=punishment_duration_str
     )
-    embed_1.add_field(name="", value=value, inline=False)
+    if removed_attachments and not triggered_blacklists and not blocked_terms:
+        notification_text = "Your message was **removed** because it contained attachment(s) with prohibited file extension(s)."
+    embed_1.add_field(name="", value=notification_text, inline=False)
     embeds.append(embed_1)
     
     embed_2 = discord.Embed(title="Message Deleted Via Channel Scan", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
@@ -1391,8 +1410,15 @@ async def notify_user_scan_deletion(message: discord.Message, censored_message: 
                        value=", ".join(f'`{term}`' for term in blocked_terms)[:1024] if blocked_terms else "No specific terms matched",
                        inline=False)
                        
+    if removed_attachments:
+        removed_names = "\n".join(att.filename for att in removed_attachments)
+        embed_2.add_field(name="Removed Attachments", value=removed_names or "None", inline=False)
+        if blocked_exts:
+            ext_list = ", ".join(f".{e}" for e in sorted(blocked_exts))
+            embed_2.add_field(name="Prohibited Extensions", value=ext_list, inline=False)
+                       
     embed_2.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed_2.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
+    embed_2.add_field(name="Original Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
     embeds.append(embed_2)
     
     try:
@@ -1405,7 +1431,7 @@ async def notify_user_scan_deletion(message: discord.Message, censored_message: 
         pass
 
 # Logging Functions
-async def log_censored_message(message, censored_message, reposted_message, server_config):
+async def log_censored_message(message, censored_message, reposted_message, server_config, removed_attachments, blocked_exts):
     """Log censored messages with detailed information."""
     triggered_blacklists = []
     spoilered_content = await apply_spoilers(message.content, message.channel, message.author, server_config)
@@ -1425,8 +1451,13 @@ async def log_censored_message(message, censored_message, reposted_message, serv
     log_channel = message.guild.get_channel_or_thread(log_channel_id)
     if not log_channel:
         return
+        
+    is_fully_removed = reposted_message is None
+    title = "Message Removed (Prohibited Attachments)" if is_fully_removed else "Message Censored"
+    link_field_name = "Original Message Link" if is_fully_removed else "Message Link"
+    link_url = message.jump_url if is_fully_removed else reposted_message.jump_url
     
-    embed_1 = discord.Embed(title="Message Censored", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+    embed_1 = discord.Embed(title=title, color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
     embed_1.add_field(name="User", value=message.author.mention, inline=False)
  
     if len(spoilered_content) > 1024:
@@ -1453,8 +1484,15 @@ async def log_censored_message(message, censored_message, reposted_message, serv
             inline=False
         )
         
-    embed_1.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed_1.add_field(name="Message Link", value=f"[Go to Message]({reposted_message.jump_url})", inline=False)
+    if removed_attachments:
+        removed_names = "\n".join(att.filename for att in removed_attachments)
+        embed_1.add_field(name="Removed Attachments", value=removed_names or "None", inline=False)
+        if blocked_exts:
+            ext_list = ", ".join(f".{e}" for e in sorted(blocked_exts))
+            embed_1.add_field(name="Prohibited Extensions", value=ext_list, inline=False)
+        
+    embed_1.add_field(name="Channel", value=message.channel.mention, inline=False) 
+    embed_1.add_field(name=link_field_name, value=f"[Go to Message]({link_url})", inline=False)
     
     await log_channel.send(embed=embed_1)
     if len(spoilered_content) > 1024:
@@ -1585,7 +1623,7 @@ async def log_censored_display_name(member, censored_display_name, server_config
     embed.add_field(name="User Link", value=f"[Go to User](https://discord.com/users/{member.id})", inline=False)
     await log_channel.send(embed=embed)
 
-async def log_scan_deletion(message: discord.Message, censored_message: str, server_config: dict):
+async def log_scan_deletion(message: discord.Message, censored_message: str, server_config: dict, removed_attachments: List[discord.Attachment] = [], blocked_exts: set = set()):
     """Log message deletions from channel scans."""
     triggered_blacklists = []
     spoilered_content = await apply_spoilers(message.content, message.channel, message.author, server_config)
@@ -1606,7 +1644,8 @@ async def log_scan_deletion(message: discord.Message, censored_message: str, ser
     if not log_channel:
         return
     
-    embed_1 = discord.Embed(title="Message Deleted via Channel Scan", color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
+    title = "Message Deleted via Channel Scan (Prohibited Attachments)" if removed_attachments else "Message Deleted via Channel Scan"
+    embed_1 = discord.Embed(title=title, color=discord.Color.red(), timestamp=datetime.now(timezone.utc))
     embed_1.add_field(name="User", value=message.author.mention, inline=False)   
     
     if len(spoilered_content) > 1024:
@@ -1633,8 +1672,15 @@ async def log_scan_deletion(message: discord.Message, censored_message: str, ser
             inline=False
         )
         
+    if removed_attachments:
+        removed_names = "\n".join(att.filename for att in removed_attachments)
+        embed_1.add_field(name="Removed Attachments", value=removed_names or "None", inline=False)
+        if blocked_exts:
+            ext_list = ", ".join(f".{e}" for e in sorted(blocked_exts))
+            embed_1.add_field(name="Prohibited Extensions", value=ext_list, inline=False)
+        
     embed_1.add_field(name="Channel", value=message.channel.mention, inline=False)
-    embed_1.add_field(name="Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
+    embed_1.add_field(name="Original Message Link", value=f"[Go to Message]({message.jump_url})", inline=False)
     
     await log_channel.send(embed=embed_1)
     if len(spoilered_content) > 1024:
@@ -1777,11 +1823,27 @@ async def on_message(message):
     server_config = await load_server_config(message.guild.id)
     if isinstance(message.channel, (discord.TextChannel, discord.ForumChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
         censored_message_content = await censor_content(message.content, message.channel, message.author, server_config)
-        if censored_message_content != message.content:
+        text_triggered = censored_message_content != message.content
+        
+        removed_attachments = []
+        blocked_exts = set()
+        if message.attachments and not await is_globally_exempt(message.channel, message.author, server_config):
+            blocked_list = set(server_config.get("blocked_extensions", []))
+            if blocked_list:
+                for att in message.attachments:
+                    filename = att.filename or ""
+                    if '.' in filename:
+                        ext = filename.lower().rsplit('.', 1)[-1]
+                        if ext in blocked_list:
+                            removed_attachments.append(att)
+                            blocked_exts.add(ext)
+        has_blocked_attachment = bool(removed_attachments)
+        
+        if text_triggered or has_blocked_attachment:
             await message_deletion_queue.put(message) 
             reposted_message = await repost_as_user(message, censored_message_content)
-            await log_censored_message(message, censored_message_content, reposted_message, server_config)
-            await notify_user_message(message, censored_message_content, reposted_message, server_config)
+            await log_censored_message(message, censored_message_content, reposted_message, server_config, removed_attachments, blocked_exts)
+            await notify_user_message(message, censored_message_content, reposted_message, server_config, removed_attachments, blocked_exts)
             await check_and_apply_punishment(message.author, message.guild.id, server_config)
             return
 
@@ -1812,12 +1874,29 @@ async def on_raw_message_edit(payload):
         return
         
     server_config = await load_server_config(message.guild.id)
+    
     censored_message_content = await censor_content(message.content, channel, message.author, server_config)
-    if censored_message_content != message.content:
+    text_triggered = censored_message_content != message.content
+    
+    removed_attachments = []
+    blocked_exts = set()
+    if message.attachments and not await is_globally_exempt(channel, message.author, server_config):
+        blocked_list = set(server_config.get("blocked_extensions", []))
+        if blocked_list:
+            for att in message.attachments:
+                filename = att.filename or ""
+                if '.' in filename:
+                    ext = filename.lower().rsplit('.', 1)[-1]
+                    if ext in blocked_list:
+                        removed_attachments.append(att)
+                        blocked_exts.add(ext)
+    has_blocked_attachment = bool(removed_attachments)
+                        
+    if text_triggered or has_blocked_attachment:
         await message_deletion_queue.put(message) 
         reposted_message = await repost_as_user(message, censored_message_content)
-        await log_censored_message(message, censored_message_content, reposted_message, server_config)
-        await notify_user_message(message, censored_message_content, reposted_message, server_config)
+        await log_censored_message(message, censored_message_content, reposted_message, server_config, removed_attachments, blocked_exts)
+        await notify_user_message(message, censored_message_content, reposted_message, server_config, removed_attachments, blocked_exts)
         await check_and_apply_punishment(message.author, message.guild.id, server_config)
 
 @bot.event
@@ -2535,6 +2614,19 @@ async def view_configuration(interaction: discord.Interaction):
         inline=False
     )
     
+    blocked_extensions = server_config.get("blocked_extensions", [])
+    blocked_extensions_str = ", ".join(f".{ext}" for ext in sorted(blocked_extensions)) or "None"
+
+    embed_1.add_field(
+        name="Blocked File Extensions",
+        value=(
+            "File extensions that trigger message removal if attached.\n"
+            "**Currently:** {0}\n"
+            "Use `/add_blocked_extension`, `/remove_blocked_extension`, and `/list_blocked_extensions` to manage."
+        ).format(blocked_extensions_str),
+        inline=False
+    )
+    
     display_name_filter_enabled = server_config.get("display_name_filter_enabled", False)
     embed_1.add_field(
         name="Display Name Filter",
@@ -3114,6 +3206,65 @@ async def import_whitelist(interaction: discord.Interaction, file: discord.Attac
             confirmation += f"- **{imported_name}**\n"
 
     await interaction.followup.send(confirmation, ephemeral=True)
+
+# Commands - Blocked File Extensions Management
+
+@bot.tree.command(name="add_blocked_extension")
+@is_admin()
+async def add_blocked_extension(interaction: discord.Interaction, extension: str):
+    """Add a file extension to the blocked list (without the dot, e.g. 'exe')."""
+    ext = extension.lower().lstrip(".").strip()
+    if not ext:
+        await interaction.response.send_message("Invalid extension provided.", ephemeral=True)
+        return
+
+    server_config = await load_server_config(interaction.guild.id)
+    blocked = server_config.setdefault("blocked_extensions", [])
+    if ext in blocked:
+        await interaction.response.send_message(f".{ext} is already blocked.", ephemeral=True)
+        return
+
+    blocked.append(ext)
+    blocked.sort()
+    await save_server_config(interaction.guild.id, server_config)
+    await interaction.response.send_message(f"Added blocked extension .{ext}.", ephemeral=True)
+
+@bot.tree.command(name="remove_blocked_extension")
+@is_admin()
+async def remove_blocked_extension(interaction: discord.Interaction, extension: str):
+    """Remove a file extension from the blocked list."""
+    ext = extension.lower().lstrip(".").strip()
+    if not ext:
+        await interaction.response.send_message("Invalid extension provided.", ephemeral=True)
+        return
+
+    server_config = await load_server_config(interaction.guild.id)
+    blocked = server_config.get("blocked_extensions", [])
+    if ext not in blocked:
+        await interaction.response.send_message(f".{ext} is not blocked.", ephemeral=True)
+        return
+
+    blocked.remove(ext)
+    await save_server_config(interaction.guild.id, server_config)
+    await interaction.response.send_message(f"Removed blocked extension .{ext}.", ephemeral=True)
+
+@bot.tree.command(name="list_blocked_extensions")
+@is_moderator()
+async def list_blocked_extensions(interaction: discord.Interaction):
+    """List all blocked file extensions."""
+    server_config = await load_server_config(interaction.guild.id)
+    blocked = sorted(server_config.get("blocked_extensions", []))
+    if not blocked:
+        await interaction.response.send_message("No blocked file extensions configured.", ephemeral=True)
+        return
+
+    ext_list = ", ".join(f".{ext}" for ext in blocked)
+    embed = discord.Embed(
+        title="Blocked File Extensions",
+        description=ext_list,
+        color=discord.Color.red()
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Commands - Exception Management
 @bot.tree.command(name="add_category_exception")
@@ -3701,10 +3852,27 @@ async def scan_last_messages(interaction: discord.Interaction, limit: int):
                 continue
 
             censored_message = await censor_content(message.content, message.channel, message.author, server_config)
-            if message.content != censored_message:
+            text_triggered = censored_message != message.content
+            
+            removed_attachments = []
+            blocked_exts = set()
+            has_blocked_attachment = False
+            if message.attachments and not await is_globally_exempt(message.channel, message.author, server_config):
+                blocked_list = set(server_config.get("blocked_extensions", []))
+                if blocked_list:
+                    for att in message.attachments:
+                        filename = att.filename or ""
+                        if '.' in filename:
+                            ext = filename.lower().rsplit('.', 1)[-1]
+                            if ext in blocked_list:
+                                has_blocked_attachment = True
+                                removed_attachments.append(att)
+                                blocked_exts.add(ext)
+            
+            if text_triggered or has_blocked_attachment:
                 await message.delete()
-                await log_scan_deletion(message, censored_message, server_config)
-                await notify_user_scan_deletion(message, censored_message, server_config)
+                await log_scan_deletion(message, censored_message, server_config, removed_attachments, blocked_exts)
+                await notify_user_scan_deletion(message, censored_message, server_config, removed_attachments, blocked_exts)
                 await check_and_apply_punishment(message.author, message.guild.id, server_config)
                 deleted_count += 1
 

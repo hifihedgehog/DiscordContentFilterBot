@@ -53,7 +53,9 @@ message_deletion_queue = Queue()
 reaction_removal_queue = Queue()
 
 # Bot Setup with Required Intents
-intents = discord.Intents.all()
+intents = discord.Intents.default()
+intents.message_content = True  # Scan message text/attachments against blacklists
+intents.members = True  # Display-name filtering, punishment expiry lookups
 bot = commands.Bot(command_prefix='!', intents=intents, status=discord.Status.invisible)
 
 # Permission Check Decorators
@@ -590,59 +592,113 @@ async def merge_ranges(ranges):
             merged.append(current)
     return merged
 
-async def get_whitelist_pattern(term: str) -> regex.Pattern:
-    """Get compiled pattern for whitelist term with additional checks."""
+def has_word_boundaries(content: str, start: int, end: int) -> bool:
+    """Check that [start, end) sits on word boundaries in the ORIGINAL content.
+
+    Boundaries are tested against the characters the user actually typed, not
+    the normalized text. Normalization maps some non-word symbols to letters
+    (e.g. '!'->'i', '@'->'a', circled/squared letters), so testing boundaries
+    on normalized text lets a trailing/leading symbol fuse onto a blocked word
+    and slip past the (?![A-Za-z0-9]) anchors. A homoglyph letter is alnum and
+    still counts as a word character; a punctuation symbol does not.
+    """
+    if start > 0 and content[start - 1].isalnum():
+        return False
+    if end < len(content) and content[end].isalnum():
+        return False
+    return True
+
+def iter_original_matches(pattern, content: str, validate: bool):
+    """Yield (start, end) matches in the original content, validating boundaries
+    against the original characters when the pattern is a word-style pattern."""
+    finditer = pattern.finditer(content, overlapped=True) if validate else pattern.finditer(content)
+    for match in finditer:
+        start, end = match.start(), match.end()
+        if start == end:
+            continue
+        if validate and not has_word_boundaries(content, start, end):
+            continue
+        yield start, end
+
+def iter_normalized_matches(pattern, normalized_content: str, index_map, content: str, validate: bool):
+    """Yield (orig_start, orig_end) for matches in the normalized content, mapped
+    back to the original via index_map, validating boundaries against the
+    original characters when the pattern is a word-style pattern."""
+    finditer = pattern.finditer(normalized_content, overlapped=True) if validate else pattern.finditer(normalized_content)
+    for match in finditer:
+        start_norm, end_norm = match.start(), match.end()
+        if start_norm == end_norm:
+            continue
+        orig_start = index_map[start_norm]
+        orig_end = index_map[end_norm - 1] + 1
+        if validate and not has_word_boundaries(content, orig_start, orig_end):
+            continue
+        yield orig_start, orig_end
+
+async def get_whitelist_pattern(term: str) -> Tuple[regex.Pattern, bool]:
+    """Get compiled pattern for whitelist term with additional checks.
+
+    Returns (compiled_pattern, validate_boundaries). Word-style patterns carry
+    no embedded boundary anchors; their boundaries are validated against the
+    original text (see has_word_boundaries) so symbol->letter normalization
+    cannot defeat the boundary check.
+    """
     cache_key = f"wl:{term}"
     if cache_key not in pattern_cache:
         normalized_term, _ = await normalize_text(term)
-        word_boundary_start = r'(?<![A-Za-z0-9])'
-        word_boundary_end = r'(?![A-Za-z0-9])'
+        validate_boundaries = False
 
         if term.startswith("re:"):
-            pattern = word_boundary_start + term[3:] + word_boundary_end
+            pattern = term[3:]
+            validate_boundaries = True
         elif await is_emoji_or_sequence(term):
             pattern = regex.escape(term)
         else:
 
             def create_subpatterns(base_term: str):
-                return [
-                    word_boundary_start + regex.escape(base_term) + word_boundary_end
-                ]
+                return [regex.escape(base_term)]
             subpatterns = (
                 create_subpatterns(term)
                 + create_subpatterns(normalized_term)
             )
             pattern = f"(?:{'|'.join(subpatterns)})"
-        pattern_cache[cache_key] = regex.compile(pattern, regex.IGNORECASE)
+            validate_boundaries = True
+        pattern_cache[cache_key] = (regex.compile(pattern, regex.IGNORECASE), validate_boundaries)
     return pattern_cache[cache_key]
 
-async def get_blacklist_pattern(term: str) -> regex.Pattern:
-    """Get compiled pattern for blacklist term with obfuscation and additional checks."""
+async def get_blacklist_pattern(term: str) -> Tuple[regex.Pattern, bool]:
+    """Get compiled pattern for blacklist term with obfuscation and additional checks.
+
+    Returns (compiled_pattern, validate_boundaries). Word-style patterns carry
+    no embedded boundary anchors; their boundaries are validated against the
+    original text (see has_word_boundaries) so symbol->letter normalization
+    cannot defeat the boundary check.
+    """
     cache_key = f"bl:{term}"
     if cache_key not in pattern_cache:
         normalized_term, _ = await normalize_text(term)
         reversed_term = term[::-1]
-        normalized_reversed_term = normalized_term[::-1]      
-        word_boundary_start = r'(?<![A-Za-z0-9])'
-        word_boundary_end = r'(?![A-Za-z0-9])'
+        normalized_reversed_term = normalized_term[::-1]
+        validate_boundaries = False
         if term.startswith("url:"):
             pattern = term[4:]
         elif term.startswith("re:"):
-            pattern = word_boundary_start + term[3:] + word_boundary_end
+            pattern = term[3:]
+            validate_boundaries = True
         elif await is_emoji_or_sequence(term):
             pattern = regex.escape(term)
         else:
 
             def create_subpatterns(base_term: str):
-                word_pattern = word_boundary_start + regex.escape(base_term) + word_boundary_end
-                obfuscated_pattern = word_boundary_start + r'[^\w]*'.join(regex.escape(char) for char in base_term) + word_boundary_end
+                word_pattern = regex.escape(base_term)
+                obfuscated_pattern = r'[^\w]*'.join(regex.escape(char) for char in base_term)
                 md_markers_class = ''.join(map(regex.escape, MARKDOWN_MARKERS))
                 markdown_intermediate = ''.join(
                     f'{regex.escape(char)}(?:[{md_markers_class}]*)'
                     for char in base_term[:-1]
                 )
                 markdown_last_char = regex.escape(base_term[-1])
-                markdown_pattern = word_boundary_start + markdown_intermediate + markdown_last_char + word_boundary_end
+                markdown_pattern = markdown_intermediate + markdown_last_char
                 return [word_pattern, obfuscated_pattern, markdown_pattern]
             subpatterns = (
                 create_subpatterns(term)
@@ -651,7 +707,8 @@ async def get_blacklist_pattern(term: str) -> regex.Pattern:
                 + create_subpatterns(normalized_reversed_term)
             )
             pattern = f"(?:{'|'.join(subpatterns)})"
-        pattern_cache[cache_key] = regex.compile(pattern, regex.IGNORECASE)
+            validate_boundaries = True
+        pattern_cache[cache_key] = (regex.compile(pattern, regex.IGNORECASE), validate_boundaries)
     return pattern_cache[cache_key]
 
 async def is_globally_exempt(channel: Optional[Union[discord.Thread, discord.abc.GuildChannel]],
@@ -732,15 +789,13 @@ async def censor_content(content: str, channel: Optional[Union[discord.Thread, d
     all_whitelist_terms = [term for terms in whitelists.values() for term in terms]
 
     for term in all_whitelist_terms:
-        pattern = await get_whitelist_pattern(term)
-        for match in pattern.finditer(content):
-            exempt_ranges_original.append((match.start(), match.end()))
+        pattern, validate = await get_whitelist_pattern(term)
+        for start, end in iter_original_matches(pattern, content, validate):
+            exempt_ranges_original.append((start, end))
 
     for term in all_whitelist_terms:
-        pattern = await get_whitelist_pattern(term)
-        for match in pattern.finditer(normalized_content):
-            orig_start = index_map[match.start()]
-            orig_end = index_map[match.end() - 1] + 1
+        pattern, validate = await get_whitelist_pattern(term)
+        for orig_start, orig_end in iter_normalized_matches(pattern, normalized_content, index_map, content, validate):
             exempt_ranges_normalized.append((orig_start, orig_end))
 
     url_matches = list(regex.finditer(URL_REGEX, content))
@@ -759,7 +814,7 @@ async def censor_content(content: str, channel: Optional[Union[discord.Thread, d
             url_terms = [term for term in terms if term.startswith("url:")]
 
             for term in url_terms:
-                pattern = await get_blacklist_pattern(term)
+                pattern, _ = await get_blacklist_pattern(term)
                 if pattern.search(url_text):
                     is_blacklisted = True
                     break
@@ -780,17 +835,13 @@ async def censor_content(content: str, channel: Optional[Union[discord.Thread, d
         general_terms = [term for term in terms if not term.startswith("url:")]
 
         for term in general_terms:
-            pattern = await get_blacklist_pattern(term)
-            for match in pattern.finditer(content):
-                start, end = match.start(), match.end()
+            pattern, validate = await get_blacklist_pattern(term)
+            for start, end in iter_original_matches(pattern, content, validate):
                 if not any(ex_start <= start < ex_end or ex_start < end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     match_ranges_original.append((start, end))
 
-            for match in pattern.finditer(normalized_content):
-                start_norm, end_norm = match.start(), match.end()
-                orig_start = index_map[start_norm]
-                orig_end = index_map[end_norm - 1] + 1
+            for orig_start, orig_end in iter_normalized_matches(pattern, normalized_content, index_map, content, validate):
                 if not any(ex_start <= orig_start < ex_end or ex_start < orig_end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     match_ranges_normalized.append((orig_start, orig_end))
@@ -823,15 +874,13 @@ async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, d
     all_whitelist_terms = [term for terms in whitelists.values() for term in terms]
 
     for term in all_whitelist_terms:
-        pattern = await get_whitelist_pattern(term)
-        for match in pattern.finditer(content):
-            exempt_ranges_original.append((match.start(), match.end()))
+        pattern, validate = await get_whitelist_pattern(term)
+        for start, end in iter_original_matches(pattern, content, validate):
+            exempt_ranges_original.append((start, end))
 
     for term in all_whitelist_terms:
-        pattern = await get_whitelist_pattern(term)
-        for match in pattern.finditer(normalized_content):
-            orig_start = index_map[match.start()]
-            orig_end = index_map[match.end() - 1] + 1
+        pattern, validate = await get_whitelist_pattern(term)
+        for orig_start, orig_end in iter_normalized_matches(pattern, normalized_content, index_map, content, validate):
             exempt_ranges_normalized.append((orig_start, orig_end))
 
     url_matches = list(regex.finditer(URL_REGEX, content))
@@ -850,7 +899,7 @@ async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, d
             url_terms = [term for term in terms if term.startswith("url:")]
 
             for term in url_terms:
-                pattern = await get_blacklist_pattern(term)
+                pattern, _ = await get_blacklist_pattern(term)
                 if pattern.search(url_text):
                     is_blacklisted = True
                     break
@@ -871,17 +920,13 @@ async def apply_spoilers(content: str, channel: Optional[Union[discord.Thread, d
         general_terms = [term for term in terms if not term.startswith("url:")]
 
         for term in general_terms:
-            pattern = await get_blacklist_pattern(term)
-            for match in pattern.finditer(content):
-                start, end = match.start(), match.end()
+            pattern, validate = await get_blacklist_pattern(term)
+            for start, end in iter_original_matches(pattern, content, validate):
                 if not any(ex_start <= start < ex_end or ex_start < end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     match_ranges_original.append((start, end))
 
-            for match in pattern.finditer(normalized_content):
-                start_norm, end_norm = match.start(), match.end()
-                orig_start = index_map[start_norm]
-                orig_end = index_map[end_norm - 1] + 1
+            for orig_start, orig_end in iter_normalized_matches(pattern, normalized_content, index_map, content, validate):
                 if not any(ex_start <= orig_start < ex_end or ex_start < orig_end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     match_ranges_normalized.append((orig_start, orig_end))
@@ -916,15 +961,13 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
     all_whitelist_terms = [term for terms in whitelists.values() for term in terms]
 
     for term in all_whitelist_terms:
-        pattern = await get_whitelist_pattern(term)
-        for match in pattern.finditer(content):
-            exempt_ranges_original.append((match.start(), match.end()))
+        pattern, validate = await get_whitelist_pattern(term)
+        for start, end in iter_original_matches(pattern, content, validate):
+            exempt_ranges_original.append((start, end))
 
     for term in all_whitelist_terms:
-        pattern = await get_whitelist_pattern(term)
-        for match in pattern.finditer(normalized_content):
-            orig_start = index_map[match.start()]
-            orig_end = index_map[match.end() - 1] + 1
+        pattern, validate = await get_whitelist_pattern(term)
+        for orig_start, orig_end in iter_normalized_matches(pattern, normalized_content, index_map, content, validate):
             exempt_ranges_normalized.append((orig_start, orig_end))
 
     url_matches = list(regex.finditer(URL_REGEX, content, regex.IGNORECASE))
@@ -943,7 +986,7 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
 
             is_blacklisted = False
             for term in url_terms:
-                pattern = await get_blacklist_pattern(term)
+                pattern, _ = await get_blacklist_pattern(term)
                 if pattern.search(url_text):
                     matched_terms.add(term)
                     is_blacklisted = True
@@ -954,16 +997,12 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
         merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
 
         for term in general_terms:
-            pattern = await get_blacklist_pattern(term)
-            for match in pattern.finditer(content):
-                start, end = match.start(), match.end()
+            pattern, validate = await get_blacklist_pattern(term)
+            for start, end in iter_original_matches(pattern, content, validate):
                 if not any(ex_start <= start < ex_end or ex_start < end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     matched_terms.add(term)
-            for match in pattern.finditer(normalized_content):
-                start_norm, end_norm = match.start(), match.end()
-                orig_start = index_map[start_norm]
-                orig_end = index_map[end_norm - 1] + 1
+            for orig_start, orig_end in iter_normalized_matches(pattern, normalized_content, index_map, content, validate):
                 if not any(ex_start <= orig_start < ex_end or ex_start < orig_end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     matched_terms.add(term)
@@ -983,7 +1022,7 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
 
             is_blacklisted = False
             for term in url_terms:
-                pattern = await get_blacklist_pattern(term)
+                pattern, _ = await get_blacklist_pattern(term)
                 if pattern.search(url_text):
                     matched_terms.add(term)
                     is_blacklisted = True
@@ -994,16 +1033,12 @@ async def get_blocked_terms(content: str, channel: Optional[Union[discord.Thread
         merged_exempt_ranges = await merge_ranges(exempt_ranges_original + exempt_ranges_normalized)
 
         for term in general_terms:
-            pattern = await get_blacklist_pattern(term)
-            for match in pattern.finditer(content):
-                start, end = match.start(), match.end()
+            pattern, validate = await get_blacklist_pattern(term)
+            for start, end in iter_original_matches(pattern, content, validate):
                 if not any(ex_start <= start < ex_end or ex_start < end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     matched_terms.add(term)
-            for match in pattern.finditer(normalized_content):
-                start_norm, end_norm = match.start(), match.end()
-                orig_start = index_map[start_norm]
-                orig_end = index_map[end_norm - 1] + 1
+            for orig_start, orig_end in iter_normalized_matches(pattern, normalized_content, index_map, content, validate):
                 if not any(ex_start <= orig_start < ex_end or ex_start < orig_end <= ex_end
                            for ex_start, ex_end in merged_exempt_ranges):
                     matched_terms.add(term)
